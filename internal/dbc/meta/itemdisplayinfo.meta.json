@@ -1,0 +1,31 @@
+{
+  "file": "ItemDisplayInfo.dbc",
+  "primaryKeys": ["id"],
+  "sortOrder": [
+    {"name": "id", "direction": "ASC"}
+  ],
+  "fields": [
+    {"name": "id", "type": "uint32"},
+    {"name": "left_model", "type": "string"},
+    {"name": "right_model", "type": "string"},
+    {"name": "left_model_texture", "type": "string"},
+    {"name": "right_model_texture", "type": "string"},
+    {"name": "icon", "type": "string", "count":2},
+    {"name": "geoset_group", "type": "uint32", "count":3},
+    {"name": "flags", "type": "uint32"},
+    {"name": "spell_visual_id", "type": "uint32"},
+    {"name": "group_sound_index", "type": "uint32"},
+    {"name": "helmet_geoset_male", "type": "uint32"},
+    {"name": "helmet_geoset_female", "type": "uint32"},
+    {"name": "upper_arm_texture", "type": "string"},
+    {"name": "lower_arm_texture", "type": "string"},
+    {"name": "hands_texture", "type": "string"},
+    {"name": "upper_torso_texture", "type": "string"},
+    {"name": "lower_torso_texture", "type": "string"},
+    {"name": "upper_leg_texture", "type": "string"},
+    {"name": "lower_leg_texture", "type": "string"},
+    {"name": "foot_texture", "type": "string"},
+    {"name": "item_visual", "type": "int32"},
+    {"name": "particle_colour_id", "type": "uint32"}
+  ]
+}

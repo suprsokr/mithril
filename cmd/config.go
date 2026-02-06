@@ -22,6 +22,25 @@ type Config struct {
 	// ClientDir holds our working copy of the WoW 3.3.5a client.
 	ClientDir string
 
+	// ModulesDir is the root of the modding workspace.
+	ModulesDir string
+
+	// BaselineDir holds pristine DBC data extracted from the client MPQs.
+	// This is the shared reference that all mods compare against.
+	BaselineDir string
+
+	// BaselineDbcDir holds raw .dbc binaries extracted from MPQs.
+	BaselineDbcDir string
+
+	// BaselineCsvDir holds pristine CSV exports of the baseline DBCs.
+	BaselineCsvDir string
+
+	// ModulesBuildDir holds build artifacts (generated .dbc and .MPQ files).
+	ModulesBuildDir string
+
+	// ServerDbcDir holds DBC files used by the TrinityCore server.
+	ServerDbcDir string
+
 	// DockerComposeFile is the path to the generated docker-compose.yml.
 	DockerComposeFile string
 
@@ -45,12 +64,28 @@ func DefaultConfig() *Config {
 		ServerDir:         "/opt/trinitycore",
 		DataDir:           filepath.Join(dir, "data"),
 		ClientDir:         filepath.Join(dir, "client"),
+		ModulesDir:        filepath.Join(dir, "modules"),
+		BaselineDir:       filepath.Join(dir, "modules", "baseline"),
+		BaselineDbcDir:    filepath.Join(dir, "modules", "baseline", "dbc"),
+		BaselineCsvDir:    filepath.Join(dir, "modules", "baseline", "csv"),
+		ModulesBuildDir:   filepath.Join(dir, "modules", "build"),
+		ServerDbcDir:      filepath.Join(dir, "data", "dbc"),
 		DockerComposeFile: filepath.Join(dir, "docker-compose.yml"),
 		DockerProjectName: "mithril",
 		MySQLRootPassword: "mithril",
 		MySQLUser:         "trinity",
 		MySQLPassword:     "trinity",
 	}
+}
+
+// ModDir returns the directory for a named mod.
+func (c *Config) ModDir(modName string) string {
+	return filepath.Join(c.ModulesDir, modName)
+}
+
+// ModDbcDir returns the DBC directory for a named mod.
+func (c *Config) ModDbcDir(modName string) string {
+	return filepath.Join(c.ModulesDir, modName, "dbc")
 }
 
 // EnsureDirs creates all host-side directories that get volume-mounted into

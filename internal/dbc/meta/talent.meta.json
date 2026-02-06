@@ -1,0 +1,24 @@
+{
+  "file": "Talent.dbc",
+  "primaryKeys": ["id"],
+  "uniqueKeys": [
+    ["spec_id", "tier_id", "column_index", "allow_for_pet_flags_1", "allow_for_pet_flags_2"]
+  ],
+  "sortOrder": [
+    {"name": "spec_id", "direction": "ASC"},
+    {"name": "tier_id", "direction": "ASC"},
+    {"name": "column_index", "direction": "ASC"}
+  ],
+  "fields": [
+    {"name": "id", "type": "uint32"},
+    {"name": "spec_id", "type": "uint32"},
+    {"name": "tier_id", "type": "uint32"},
+    {"name": "column_index", "type": "uint32"},
+    {"name": "rank", "type": "uint32", "count":9},
+    {"name": "pre_req_talent", "type": "uint32", "count":3},
+    {"name": "pre_req_rank", "type": "uint32", "count":3},
+    {"name": "flags", "type": "uint32"},
+    {"name": "req_spell_id", "type": "uint32"},
+    {"name": "allow_for_pet_flags", "type": "uint32", "count":2}
+  ]
+}

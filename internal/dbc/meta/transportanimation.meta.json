@@ -1,0 +1,17 @@
+{
+  "file": "TransportAnimation.dbc",
+  "primaryKeys": ["id"],
+  "sortOrder": [
+    { "name": "transport_id", "direction": "ASC" },
+    { "name": "id", "direction": "ASC" }
+  ],
+  "fields": [
+    { "name": "id", "type": "uint32" },
+    { "name": "transport_id", "type": "uint32" },
+    { "name": "time_index", "type": "uint32" },
+    { "name": "x", "type": "float" },
+    { "name": "y", "type": "float" },
+    { "name": "z", "type": "float" },
+    { "name": "sequence_id", "type": "uint32" }
+  ]
+}

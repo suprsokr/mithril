@@ -1,0 +1,18 @@
+{
+  "file": "TalentTab.dbc",
+  "primaryKeys": ["id"],
+  "sortOrder": [
+    {"name": "order_index", "direction": "ASC"},
+    {"name": "id", "direction": "ASC"}
+  ],
+  "fields": [
+    {"name": "id", "type": "int32"},
+    {"name": "name", "type": "Loc"},
+    {"name": "spell_icon", "type": "uint32"},
+    {"name": "race_mask", "type": "uint32"},
+    {"name": "class_mask", "type": "uint32"},
+    {"name": "creature_family", "type": "uint32"},
+    {"name": "order_index", "type": "uint32"},
+    {"name": "background_file", "type": "string"}
+  ]
+}

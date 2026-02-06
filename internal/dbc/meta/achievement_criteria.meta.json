@@ -1,0 +1,25 @@
+{
+  "file": "Achievement_Criteria.dbc",
+  "primaryKeys": ["id"],
+  "sortOrder": [
+    {"name": "ui_order", "direction": "ASC"},
+    {"name": "id", "direction": "ASC"}
+  ],
+  "fields": [
+    {"name": "id", "type": "uint32"},
+    {"name": "achievement_id", "type": "uint32"},
+    {"name": "type", "type": "uint32"},
+    {"name": "req_asset_id", "type": "uint32"},
+    {"name": "req_asset_count", "type": "uint32"},
+    {"name": "start_event", "type": "uint32"},
+    {"name": "start_asset_id", "type": "uint32"},
+    {"name": "fail_event", "type": "uint32"},
+    {"name": "fail_asset_id", "type": "uint32"},
+    {"name": "desc", "type": "Loc"},
+    {"name": "flags", "type": "uint32"},
+    {"name": "timer_start_event", "type": "uint32"},
+    {"name": "timer_asset_id", "type": "uint32"},
+    {"name": "timer_limit", "type": "uint32"},
+    {"name": "ui_order", "type": "uint32"}
+  ]
+}

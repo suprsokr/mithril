@@ -22,6 +22,17 @@ Commands:
                    Create a game account (gm_level: 0-3, default 3)
   client start     Launch the WoW 3.3.5a client (via Wine on Linux/macOS)
 
+  mod init         Extract baseline DBCs from client MPQs
+  mod create       Create a new named mod
+  mod list         List all mods
+  mod status       Show which DBCs have been modified
+  mod build        Build patch-M.MPQ (one mod or all)
+  mod dbc list     List all baseline DBC files
+  mod dbc search   Search across DBC CSVs (regex)
+  mod dbc inspect  Show schema and sample records for a DBC
+  mod dbc edit     Open a DBC CSV in $EDITOR (per mod)
+  mod dbc set      Programmatically edit a DBC field (per mod)
+
 Flags:
   -h, --help       Show this help message
 `
@@ -48,6 +59,8 @@ func Execute(args []string) error {
 			return fmt.Errorf("client command requires a subcommand: start")
 		}
 		return runClient(args[1], args[2:])
+	case "mod":
+		return runMod(args[1:])
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 		return nil
