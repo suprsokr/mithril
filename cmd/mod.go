@@ -41,6 +41,19 @@ Commands:
   patch status              Show applied binary patches
   patch restore             Restore Wow.exe from clean backup
 
+  sql create <name> --mod <name> [--db <database>]
+                            Create a new SQL migration
+  sql list [--mod <name>]   List SQL migrations
+  sql apply [--mod <name>]  Apply pending SQL migrations
+  sql status [--mod <name>] Show migration status
+
+  core list [--mod <name>]
+                            List TrinityCore core patches
+  core apply [--mod <name>]
+                            Apply core patches to TrinityCore
+  core status [--mod <name>]
+                            Show core patch status
+
 Examples:
   mithril mod init
   mithril mod create my-spell-mod
@@ -49,6 +62,9 @@ Examples:
   mithril mod addon list
   mithril mod addon search "SpellBook"
   mithril mod addon edit Interface/FrameXML/SpellBookFrame.lua --mod my-mod
+  mithril mod sql create add_custom_npc --mod my-mod
+  mithril mod sql apply --mod my-mod
+  mithril mod core apply --mod my-mod
   mithril mod build
   mithril mod list
 `
@@ -96,6 +112,18 @@ func runMod(args []string) error {
 			return fmt.Errorf("mod patch requires a subcommand: list, apply, status, restore")
 		}
 		return runModPatch(args[1], args[2:])
+	case "sql":
+		if len(args) < 2 {
+			fmt.Print(modUsage)
+			return fmt.Errorf("mod sql requires a subcommand: create, list, apply, status")
+		}
+		return runModSQL(args[1], args[2:])
+	case "core":
+		if len(args) < 2 {
+			fmt.Print(modUsage)
+			return fmt.Errorf("mod core requires a subcommand: list, apply, status")
+		}
+		return runModCore(args[1], args[2:])
 	case "-h", "--help", "help":
 		fmt.Print(modUsage)
 		return nil

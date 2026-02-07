@@ -39,6 +39,11 @@ Commands:
   mod patch apply  Apply a binary patch to Wow.exe
   mod patch status Show applied binary patches
   mod patch restore Restore Wow.exe from clean backup
+  mod sql create   Create a SQL migration
+  mod sql apply    Apply pending SQL migrations
+  mod sql list     List SQL migrations
+  mod core apply   Apply TrinityCore core patches
+  mod core list    List core patches
 
 Flags:
   -h, --help       Show this help message

@@ -22,6 +22,8 @@ A mod can contain any combination of:
 - **DBC edits** — Game data changes (spells, items, talents, etc.) stored as CSV files
 - **Addon edits** — UI modifications (Lua, XML, TOC files) with preserved directory structure
 - **Binary patches** — Byte-level patches to `Wow.exe` described as JSON files
+- **SQL migrations** — Server-side database changes (creatures, loot, quests, spawns)
+- **Core patches** — TrinityCore C++ code changes as git `.patch` files
 
 Mods are:
 
@@ -61,8 +63,13 @@ mithril-data/
     │   │   └── Spell.dbc.csv
     │   ├── addons/                 # Only the addon files this mod changes
     │   │   └── Interface/GlueXML/GlueStrings.lua
-    │   └── binary-patches/         # Binary patches for Wow.exe
-    │       └── allow-custom-gluexml.json
+    │   ├── binary-patches/         # Binary patches for Wow.exe
+    │   │   └── allow-custom-gluexml.json
+    │   ├── sql/                    # Server-side SQL migrations
+    │   │   └── world/
+    │   │       └── 001_add_custom_npc.sql
+    │   └── core-patches/           # TrinityCore C++ patches
+    │       └── 001_custom_handler.patch
     │
     ├── my-item-mod/                # Another mod
     │   ├── mod.json
@@ -89,9 +96,11 @@ mithril-data/
 
 Each mod type has its own set of commands documented in the workflow guides:
 
-- **[DBC Workflow](dbc-workflow.md)** — `mithril mod dbc *` commands for editing game data (spells, items, talents)
-- **[Addon Workflow](addons-workflow.md)** — `mithril mod addon *` commands for modifying the client UI (Lua/XML)
-- **[Binary Patches Workflow](binary-patches-workflow.md)** — `mithril mod patch *` commands for patching the client executable
+- **[DBC Workflow](dbc-workflow.md)** — `mithril mod dbc *` — Editing game data (spells, items, talents)
+- **[Addon Workflow](addons-workflow.md)** — `mithril mod addon *` — Modifying the client UI (Lua/XML)
+- **[Binary Patches Workflow](binary-patches-workflow.md)** — `mithril mod patch *` — Patching the client executable
+- **[SQL Workflow](sql-workflow.md)** — `mithril mod sql *` — Server-side database migrations
+- **[Core Patches Workflow](core-patches-workflow.md)** — `mithril mod core *` — TrinityCore C++ patches
 
 ## Supported Modding Workflows
 
@@ -109,11 +118,32 @@ Some mods require changes to the WoW client executable itself (`Wow.exe`). For e
 
 Binary patches are treated like any other mod content — they live in a mod's `binary-patches/` directory and can be distributed and shared. Mithril also includes built-in patches for common needs. See [Binary Patches Workflow](binary-patches-workflow.md) for the full guide.
 
+### SQL Migrations
+
+SQL migrations modify the TrinityCore server databases — creature stats, loot tables, quest scripts, NPC spawns, and more. Mithril provides a numbered migration system that tracks which SQL files have been applied, preventing duplicate execution. Migrations run against the MySQL instance inside the Docker container.
+
+```bash
+mithril mod sql create add_custom_npc --mod my-mod
+mithril mod sql apply --mod my-mod
+```
+
+See [SQL Workflow](sql-workflow.md) for the full guide.
+
+### TrinityCore Core Patches
+
+Core patches modify the TrinityCore C++ server code — adding new features, custom spell handlers, chat commands, or core mechanic changes. Patches are standard git `.patch` files applied to the TrinityCore source tree before compilation.
+
+```bash
+mithril mod core apply --mod my-mod
+mithril init --rebuild
+```
+
+See [Core Patches Workflow](core-patches-workflow.md) for the full guide.
+
 ### Future Workflows
 
 The modding framework is designed to support additional workflows as they're implemented:
 
-- **SQL patches** — Server-side database changes (creature stats, loot tables, quest scripts)
 - **Asset replacement** — Textures, models, and other art assets
 - **Map editing** — ADT/WDT terrain modifications
 

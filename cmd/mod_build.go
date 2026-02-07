@@ -494,12 +494,17 @@ func runModStatus(args []string) error {
 	fmt.Printf("  Total baseline DBCs: %d\n", len(manifest.Files))
 	fmt.Println()
 
+	sqlTracker, _ := loadSQLTracker(cfg)
+	coreTracker, _ := loadCoreTracker(cfg)
+
 	// Helper to print status for one mod
 	printModStatus := func(mod string) {
 		modifiedDBCs := findModifiedDBCsInMod(cfg, mod)
 		modifiedAddons := findModifiedAddons(cfg, mod)
+		sqlMigrations := findMigrations(cfg, mod)
+		corePatches := findCorePatches(cfg, mod)
 
-		if len(modifiedDBCs) == 0 && len(modifiedAddons) == 0 {
+		if len(modifiedDBCs) == 0 && len(modifiedAddons) == 0 && len(sqlMigrations) == 0 && len(corePatches) == 0 {
 			fmt.Printf("  %s: no modifications\n", mod)
 			return
 		}
@@ -514,6 +519,20 @@ func runModStatus(args []string) error {
 		}
 		for _, name := range modifiedAddons {
 			fmt.Printf("    ✏ addon: %s\n", name)
+		}
+		for _, m := range sqlMigrations {
+			status := "pending"
+			if sqlTracker.IsApplied(m.mod, m.filename) {
+				status = "applied"
+			}
+			fmt.Printf("    📋 sql [%s]: %s/%s\n", status, m.database, m.filename)
+		}
+		for _, p := range corePatches {
+			status := "pending"
+			if coreTracker.IsApplied(p.mod, p.filename) {
+				status = "applied"
+			}
+			fmt.Printf("    🔧 core [%s]: %s\n", status, p.filename)
 		}
 	}
 
