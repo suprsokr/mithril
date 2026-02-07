@@ -44,7 +44,7 @@ func runModInit(args []string) error {
 	fmt.Printf("Client data: %s\n", clientDataDir)
 
 	// Create output directories
-	for _, d := range []string{cfg.ModulesDir, cfg.BaselineDir, cfg.BaselineDbcDir, cfg.BaselineCsvDir, cfg.ModulesBuildDir} {
+	for _, d := range []string{cfg.ModulesDir, cfg.BaselineDir, cfg.BaselineDbcDir, cfg.BaselineCsvDir, cfg.BaselineAddonsDir, cfg.ModulesBuildDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return fmt.Errorf("create directory %s: %w", d, err)
 		}
@@ -206,18 +206,72 @@ func runModInit(args []string) error {
 		return fmt.Errorf("write manifest: %w", err)
 	}
 
+	// --- Phase 2: Extract addon files (lua, xml, toc) ---
+	fmt.Println("\nExtracting addon files (lua, xml, toc)...")
+
+	// All addon files live in locale archives. Collect them with
+	// later archives overriding earlier ones (same as DBC extraction).
+	type addonSource struct {
+		mpqPath    string
+		archiveIdx int
+	}
+	addonFiles := make(map[string]addonSource)
+
+	for i := len(archives) - 1; i >= 0; i-- {
+		files, err := archives[i].archive.ListFiles()
+		if err != nil {
+			continue
+		}
+		for _, file := range files {
+			lower := strings.ToLower(file)
+			if !strings.HasPrefix(lower, "interface") {
+				continue
+			}
+			if !strings.HasSuffix(lower, ".lua") && !strings.HasSuffix(lower, ".xml") && !strings.HasSuffix(lower, ".toc") {
+				continue
+			}
+			normalized := strings.ReplaceAll(file, "\\", "/")
+			key := strings.ToLower(normalized)
+			if _, exists := addonFiles[key]; !exists {
+				addonFiles[key] = addonSource{mpqPath: file, archiveIdx: i}
+			}
+		}
+	}
+
+	addonCount := 0
+	for _, src := range addonFiles {
+		archive := archives[src.archiveIdx]
+		normalized := strings.ReplaceAll(src.mpqPath, "\\", "/")
+		outPath := filepath.Join(cfg.BaselineAddonsDir, normalized)
+
+		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
+			fmt.Printf("  ⚠ Failed to create dir for %s: %v\n", normalized, err)
+			continue
+		}
+
+		if err := archive.archive.ExtractFile(src.mpqPath, outPath); err != nil {
+			fmt.Printf("  ⚠ Failed to extract %s: %v\n", normalized, err)
+			continue
+		}
+		addonCount++
+	}
+
+	fmt.Printf("  Extracted %d addon files\n", addonCount)
+
 	fmt.Printf("\n=== Extraction Complete ===\n")
-	fmt.Printf("  Total DBC files:    %d\n", extracted)
-	fmt.Printf("  With known schema:  %d (exported to CSV)\n", withMeta)
-	fmt.Printf("  Without schema:     %d (raw .dbc only)\n", withoutMeta)
+	fmt.Printf("  DBC files:          %d (%d with schema, %d raw only)\n", extracted, withMeta, withoutMeta)
+	fmt.Printf("  Addon files:        %d (lua/xml/toc)\n", addonCount)
 	fmt.Printf("  Baseline CSVs:      %s\n", cfg.BaselineCsvDir)
 	fmt.Printf("  Baseline raw DBCs:  %s\n", cfg.BaselineDbcDir)
+	fmt.Printf("  Baseline addons:    %s\n", cfg.BaselineAddonsDir)
 	fmt.Printf("  Manifest:           %s\n", manifestPath)
 	fmt.Println()
 	fmt.Println("Next steps:")
-	fmt.Println("  mithril mod create my-mod          # Create a mod")
-	fmt.Println("  mithril mod dbc list               # List all DBCs")
-	fmt.Println("  mithril mod dbc search \"Fireball\"   # Search across DBCs")
+	fmt.Println("  mithril mod create my-mod              # Create a mod")
+	fmt.Println("  mithril mod dbc list                   # List all DBCs")
+	fmt.Println("  mithril mod dbc search \"Fireball\"       # Search across DBCs")
+	fmt.Println("  mithril mod addon list                 # List all addon files")
+	fmt.Println("  mithril mod addon search \"pattern\"      # Search addon files")
 
 	return nil
 }

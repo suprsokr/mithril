@@ -35,6 +35,9 @@ type Config struct {
 	// BaselineCsvDir holds pristine CSV exports of the baseline DBCs.
 	BaselineCsvDir string
 
+	// BaselineAddonsDir holds pristine addon files (lua, xml, toc) extracted from MPQs.
+	BaselineAddonsDir string
+
 	// ModulesBuildDir holds build artifacts (generated .dbc and .MPQ files).
 	ModulesBuildDir string
 
@@ -68,6 +71,7 @@ func DefaultConfig() *Config {
 		BaselineDir:       filepath.Join(dir, "modules", "baseline"),
 		BaselineDbcDir:    filepath.Join(dir, "modules", "baseline", "dbc"),
 		BaselineCsvDir:    filepath.Join(dir, "modules", "baseline", "csv"),
+		BaselineAddonsDir: filepath.Join(dir, "modules", "baseline", "addons"),
 		ModulesBuildDir:   filepath.Join(dir, "modules", "build"),
 		ServerDbcDir:      filepath.Join(dir, "data", "dbc"),
 		DockerComposeFile: filepath.Join(dir, "docker-compose.yml"),
@@ -86,6 +90,11 @@ func (c *Config) ModDir(modName string) string {
 // ModDbcDir returns the DBC directory for a named mod.
 func (c *Config) ModDbcDir(modName string) string {
 	return filepath.Join(c.ModulesDir, modName, "dbc")
+}
+
+// ModAddonsDir returns the addons directory for a named mod.
+func (c *Config) ModAddonsDir(modName string) string {
+	return filepath.Join(c.ModulesDir, modName, "addons")
 }
 
 // EnsureDirs creates all host-side directories that get volume-mounted into

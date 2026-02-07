@@ -32,6 +32,9 @@ Commands:
   mod dbc inspect  Show schema and sample records for a DBC
   mod dbc edit     Open a DBC CSV in $EDITOR (per mod)
   mod dbc set      Programmatically edit a DBC field (per mod)
+  mod addon list   List all baseline addon files
+  mod addon search Search addon files (regex)
+  mod addon edit   Edit an addon file in a mod
 
 Flags:
   -h, --help       Show this help message

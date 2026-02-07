@@ -55,27 +55,17 @@ func runModBuild(args []string) error {
 		return fmt.Errorf("create build dir: %w", err)
 	}
 
-	// Phase 1: Build DBC binaries and per-mod MPQs
-	// Track all built files across mods for the combined MPQ
-	var allBuiltFiles []builtFile
+	// Phase 1: Build DBC binaries and collect addon files per mod
+	var allDbcFiles []builtFile
+	var allAddonFiles []builtFile
 	seenDBCs := make(map[string]bool)
+	seenAddons := make(map[string]bool)
 
+	// Resolve patch slots for all mods up front
+	modSlots := make(map[string]string)
 	for _, mod := range modsToBuild {
-		modFiles, err := buildModDBCs(cfg, mod)
-		if err != nil {
-			fmt.Printf("  ⚠ Error building mod '%s': %v\n", mod, err)
-			continue
-		}
-		if len(modFiles) == 0 {
-			continue
-		}
-
-		// Build per-mod MPQ in the build directory.
-		// Each mod has an assigned patch slot (A, B, C, ... L, AA, AB, ...)
-		// that sorts after patch-3.MPQ but before patch-M.MPQ (the combined).
 		modMeta, metaErr := loadModMeta(cfg, mod)
 		if metaErr == nil && modMeta.PatchSlot == "" {
-			// Backfill slot for mods created before slot assignment existed
 			slot, slotErr := nextPatchSlot(cfg)
 			if slotErr == nil {
 				modMeta.PatchSlot = slot
@@ -84,78 +74,130 @@ func runModBuild(args []string) error {
 				fmt.Printf("  Assigned patch slot %s to mod '%s'\n", slot, mod)
 			}
 		}
-		modMpqName := "patch-" + mod + ".MPQ" // fallback
 		if metaErr == nil && modMeta.PatchSlot != "" {
-			modMpqName = "patch-" + modMeta.PatchSlot + ".MPQ"
+			modSlots[mod] = modMeta.PatchSlot
 		}
-		modMpqPath := filepath.Join(cfg.ModulesBuildDir, modMpqName)
-		if err := createMPQ(modMpqPath, modFiles); err != nil {
-			fmt.Printf("  ⚠ Failed to create %s: %v\n", modMpqName, err)
-		} else {
-			fmt.Printf("  ✓ %s (%d DBC file(s))\n", modMpqName, len(modFiles))
+	}
+
+	for _, mod := range modsToBuild {
+		// Build DBC files
+		dbcFiles, err := buildModDBCs(cfg, mod)
+		if err != nil {
+			fmt.Printf("  ⚠ Error building DBCs for mod '%s': %v\n", mod, err)
 		}
 
-		// Add to combined list (later mods override earlier for same DBC)
-		for _, bf := range modFiles {
-			baseName := strings.TrimSuffix(filepath.Base(bf.diskPath), ".dbc")
-			if !seenDBCs[baseName] {
-				allBuiltFiles = append(allBuiltFiles, bf)
-				seenDBCs[baseName] = true
+		// Collect addon files
+		addonFiles := collectModAddons(cfg, mod)
+
+		if len(dbcFiles) == 0 && len(addonFiles) == 0 {
+			continue
+		}
+
+		// Build per-mod DBC MPQ (non-locale)
+		slot := modSlots[mod]
+		if len(dbcFiles) > 0 && slot != "" {
+			modMpqName := "patch-" + slot + ".MPQ"
+			modMpqPath := filepath.Join(cfg.ModulesBuildDir, modMpqName)
+			if err := createMPQ(modMpqPath, dbcFiles); err != nil {
+				fmt.Printf("  ⚠ Failed to create %s: %v\n", modMpqName, err)
+			} else {
+				fmt.Printf("  ✓ %s (%d DBC file(s))\n", modMpqName, len(dbcFiles))
+			}
+		}
+
+		// Build per-mod addon MPQ (locale-specific)
+		if len(addonFiles) > 0 && slot != "" {
+			locale := detectLocaleFromManifest(cfg)
+			modAddonMpqName := "patch-" + locale + "-" + slot + ".MPQ"
+			modAddonMpqPath := filepath.Join(cfg.ModulesBuildDir, modAddonMpqName)
+			if err := createMPQ(modAddonMpqPath, addonFiles); err != nil {
+				fmt.Printf("  ⚠ Failed to create %s: %v\n", modAddonMpqName, err)
+			} else {
+				fmt.Printf("  ✓ %s (%d addon file(s))\n", modAddonMpqName, len(addonFiles))
+			}
+		}
+
+		// Add to combined lists
+		for _, bf := range dbcFiles {
+			key := strings.ToLower(bf.mpqPath)
+			if !seenDBCs[key] {
+				allDbcFiles = append(allDbcFiles, bf)
+				seenDBCs[key] = true
+			}
+		}
+		for _, bf := range addonFiles {
+			key := strings.ToLower(bf.mpqPath)
+			if !seenAddons[key] {
+				allAddonFiles = append(allAddonFiles, bf)
+				seenAddons[key] = true
 			}
 		}
 	}
 
-	if len(allBuiltFiles) == 0 {
-		fmt.Println("\nNo modified DBC files to package.")
+	if len(allDbcFiles) == 0 && len(allAddonFiles) == 0 {
+		fmt.Println("\nNo modified files to package.")
 		return nil
 	}
 
-	// Phase 2: Determine the client patch name.
-	// - Build all mods: patch-M.MPQ
-	// - Build specific mods: patch-<slot1>-<slot2>-...MPQ (slots sorted)
+	// Phase 2: Determine client patch names and deploy.
 	clientDataDir := filepath.Join(cfg.ClientDir, "Data")
-	var clientMpqName string
+	locale := detectLocaleFromManifest(cfg)
+	clientLocaleDir := filepath.Join(clientDataDir, locale)
 
+	var slotSuffix string
 	if buildAll {
-		clientMpqName = "patch-M.MPQ"
+		slotSuffix = "M"
 	} else {
-		// Collect patch slots for the selected mods
 		var slots []string
 		for _, mod := range modsToBuild {
-			modMeta, err := loadModMeta(cfg, mod)
-			if err == nil && modMeta.PatchSlot != "" {
-				slots = append(slots, modMeta.PatchSlot)
+			if s, ok := modSlots[mod]; ok {
+				slots = append(slots, s)
 			}
 		}
 		sort.Strings(slots)
-		clientMpqName = "patch-" + strings.Join(slots, "-") + ".MPQ"
+		slotSuffix = strings.Join(slots, "-")
 	}
 
-	// Build the MPQ in modules/build/
-	buildMpqPath := filepath.Join(cfg.ModulesBuildDir, clientMpqName)
-	fmt.Printf("\nBuilding %s...\n", clientMpqName)
-	if err := createMPQ(buildMpqPath, allBuiltFiles); err != nil {
-		return fmt.Errorf("create MPQ: %w", err)
-	}
-
-	// Clean all mithril-generated patches from the client Data/ directory,
-	// then deploy the new one. This ensures only one mithril patch is active.
+	// Clean all mithril patches from both Data/ and Data/<locale>/
 	cleanedCount := cleanMithrilPatches(clientDataDir)
+	cleanedCount += cleanMithrilPatches(clientLocaleDir)
 	if cleanedCount > 0 {
-		fmt.Printf("Cleaned %d previous mithril patch(es) from client\n", cleanedCount)
+		fmt.Printf("\nCleaned %d previous mithril patch(es) from client\n", cleanedCount)
 	}
 
-	clientMpqPath := filepath.Join(clientDataDir, clientMpqName)
-	if err := copyFile(buildMpqPath, clientMpqPath); err != nil {
-		return fmt.Errorf("deploy to client: %w", err)
+	// Deploy DBC MPQ to Data/
+	if len(allDbcFiles) > 0 {
+		dbcMpqName := "patch-" + slotSuffix + ".MPQ"
+		buildDbcMpqPath := filepath.Join(cfg.ModulesBuildDir, dbcMpqName)
+		fmt.Printf("\nBuilding %s (%d DBC files)...\n", dbcMpqName, len(allDbcFiles))
+		if err := createMPQ(buildDbcMpqPath, allDbcFiles); err != nil {
+			return fmt.Errorf("create DBC MPQ: %w", err)
+		}
+		clientDbcMpqPath := filepath.Join(clientDataDir, dbcMpqName)
+		if err := copyFile(buildDbcMpqPath, clientDbcMpqPath); err != nil {
+			return fmt.Errorf("deploy DBC MPQ: %w", err)
+		}
+	}
+
+	// Deploy addon MPQ to Data/<locale>/
+	if len(allAddonFiles) > 0 {
+		addonMpqName := "patch-" + locale + "-" + slotSuffix + ".MPQ"
+		buildAddonMpqPath := filepath.Join(cfg.ModulesBuildDir, addonMpqName)
+		fmt.Printf("Building %s (%d addon files)...\n", addonMpqName, len(allAddonFiles))
+		if err := createMPQ(buildAddonMpqPath, allAddonFiles); err != nil {
+			return fmt.Errorf("create addon MPQ: %w", err)
+		}
+		clientAddonMpqPath := filepath.Join(clientLocaleDir, addonMpqName)
+		if err := copyFile(buildAddonMpqPath, clientAddonMpqPath); err != nil {
+			return fmt.Errorf("deploy addon MPQ: %w", err)
+		}
 	}
 
 	// Phase 3: Deploy modified DBCs to the server's data/dbc/ directory.
-	// TrinityCore reads DBC files from flat files on disk (data/dbc/), not from MPQs.
 	serverDeployed := 0
-	if _, err := os.Stat(cfg.ServerDbcDir); err == nil {
+	if _, err := os.Stat(cfg.ServerDbcDir); err == nil && len(allDbcFiles) > 0 {
 		fmt.Printf("\nDeploying to server (data/dbc/)...\n")
-		for _, bf := range allBuiltFiles {
+		for _, bf := range allDbcFiles {
 			dbcFileName := filepath.Base(strings.ReplaceAll(bf.mpqPath, "\\", "/"))
 			serverPath := filepath.Join(cfg.ServerDbcDir, dbcFileName)
 			if err := copyFile(bf.diskPath, serverPath); err != nil {
@@ -171,35 +213,41 @@ func runModBuild(args []string) error {
 	fmt.Printf("\n=== Build Complete ===\n")
 	fmt.Printf("  Mods:     %s\n", label)
 	fmt.Println()
-	fmt.Println("  Per-mod MPQs (modules/build/):")
+	fmt.Println("  Build artifacts (modules/build/):")
 	for _, mod := range modsToBuild {
-		modMeta, metaErr := loadModMeta(cfg, mod)
-		modMpqName := "patch-" + mod + ".MPQ"
-		if metaErr == nil && modMeta.PatchSlot != "" {
-			modMpqName = "patch-" + modMeta.PatchSlot + ".MPQ"
-		}
-		modMpqPath := filepath.Join(cfg.ModulesBuildDir, modMpqName)
-		if info, err := os.Stat(modMpqPath); err == nil {
-			fmt.Printf("    %s  ← %s (%d bytes)\n", modMpqName, mod, info.Size())
+		slot := modSlots[mod]
+		if slot != "" {
+			dbcPath := filepath.Join(cfg.ModulesBuildDir, "patch-"+slot+".MPQ")
+			if info, err := os.Stat(dbcPath); err == nil {
+				fmt.Printf("    patch-%s.MPQ  ← %s DBC (%d bytes)\n", slot, mod, info.Size())
+			}
+			addonPath := filepath.Join(cfg.ModulesBuildDir, "patch-"+locale+"-"+slot+".MPQ")
+			if info, err := os.Stat(addonPath); err == nil {
+				fmt.Printf("    patch-%s-%s.MPQ  ← %s addons (%d bytes)\n", locale, slot, mod, info.Size())
+			}
 		}
 	}
 	fmt.Println()
-	fmt.Printf("  Client:   %s → %s\n", clientMpqName, clientMpqPath)
-	if serverDeployed > 0 {
-		fmt.Printf("  Server:   %d DBC(s) → %s\n", serverDeployed, cfg.ServerDbcDir)
+	if len(allDbcFiles) > 0 {
+		fmt.Printf("  Client DBC:    Data/patch-%s.MPQ (%d files)\n", slotSuffix, len(allDbcFiles))
 	}
-	fmt.Printf("  Total:    %d DBC(s) packaged\n", len(allBuiltFiles))
+	if len(allAddonFiles) > 0 {
+		fmt.Printf("  Client addons: Data/%s/patch-%s-%s.MPQ (%d files)\n", locale, locale, slotSuffix, len(allAddonFiles))
+	}
+	if serverDeployed > 0 {
+		fmt.Printf("  Server:        %d DBC(s) → %s\n", serverDeployed, cfg.ServerDbcDir)
+	}
 	fmt.Println()
 
-	// Show active mithril patches in the client
-	activeMithrilPatches := listMithrilPatches(clientDataDir)
-	if len(activeMithrilPatches) == 0 {
+	// Show active mithril patches
+	activePatches := listMithrilPatches(clientDataDir)
+	activeLocalePatches := listMithrilPatches(clientLocaleDir)
+	allActive := append(activePatches, activeLocalePatches...)
+	if len(allActive) == 0 {
 		fmt.Println("No mithril patches active in client.")
-	} else if len(activeMithrilPatches) == 1 {
-		fmt.Printf("Active mithril patch: %s\n", activeMithrilPatches[0])
 	} else {
 		fmt.Println("Active mithril patches:")
-		for _, p := range activeMithrilPatches {
+		for _, p := range allActive {
 			fmt.Printf("  %s\n", p)
 		}
 	}
@@ -210,6 +258,35 @@ func runModBuild(args []string) error {
 	}
 
 	return nil
+}
+
+// collectModAddons returns builtFile entries for addon files modified in a mod.
+func collectModAddons(cfg *Config, mod string) []builtFile {
+	modifiedAddons := findModifiedAddons(cfg, mod)
+	if len(modifiedAddons) == 0 {
+		return nil
+	}
+
+	fmt.Printf("  Mod '%s': %d modified addon file(s)\n", mod, len(modifiedAddons))
+
+	var files []builtFile
+	for _, relPath := range modifiedAddons {
+		diskPath := filepath.Join(cfg.ModAddonsDir(mod), relPath)
+		// MPQ paths use backslashes
+		mpqPath := strings.ReplaceAll(relPath, "/", "\\")
+		files = append(files, builtFile{diskPath: diskPath, mpqPath: mpqPath})
+		fmt.Printf("    ✓ %s\n", relPath)
+	}
+	return files
+}
+
+// detectLocaleFromManifest reads the locale from the baseline manifest, with fallback.
+func detectLocaleFromManifest(cfg *Config) string {
+	manifest, err := loadManifest(cfg.BaselineDir)
+	if err == nil && manifest.Locale != "" {
+		return manifest.Locale
+	}
+	return "enUS"
 }
 
 // buildModDBCs converts a mod's modified CSVs to DBC binaries and returns the list of built files.
@@ -282,10 +359,8 @@ func listMithrilPatches(clientDataDir string) []string {
 	return patches
 }
 
-// cleanMithrilPatches removes all mithril-generated patch files from the client
-// Data/ directory. Mithril patches use letter-based slot names (e.g., patch-A.MPQ,
-// patch-M.MPQ, patch-B-C.MPQ). Base game patches use numeric suffixes (patch.MPQ,
-// patch-2.MPQ, patch-3.MPQ) or locale names (patch-enUS.MPQ) and are left alone.
+// cleanMithrilPatches removes all mithril-generated patch files from the given
+// directory. Works for both Data/ and Data/<locale>/.
 func cleanMithrilPatches(clientDataDir string) int {
 	entries, err := os.ReadDir(clientDataDir)
 	if err != nil {
@@ -309,37 +384,48 @@ func cleanMithrilPatches(clientDataDir string) int {
 }
 
 // isMithrilPatch returns true if a filename looks like a mithril-generated patch.
-// Mithril patches match: patch-<LETTERS>[-<LETTERS>...].MPQ
-// where each segment is uppercase letters only (A-L, M, AA-LL, etc.)
+// Mithril patches come in two forms:
+//   - Non-locale: patch-<SLOTS>.MPQ  (e.g., patch-A.MPQ, patch-M.MPQ, patch-B-C.MPQ)
+//   - Locale:     patch-<locale>-<SLOTS>.MPQ  (e.g., patch-enUS-M.MPQ, patch-enUS-A-B.MPQ)
 //
 // NOT mithril patches:
 //   - patch.MPQ (no suffix)
 //   - patch-2.MPQ, patch-3.MPQ (numeric)
-//   - patch-enUS.MPQ (locale — has lowercase letters)
+//   - patch-enUS.MPQ, patch-enUS-2.MPQ (base locale patches)
 func isMithrilPatch(filename string) bool {
-	// Normalize: compare case-insensitively for the "patch-" prefix and ".MPQ" suffix
 	lower := strings.ToLower(filename)
 	if !strings.HasPrefix(lower, "patch-") || !strings.HasSuffix(lower, ".mpq") {
 		return false
 	}
-	// Extract the part between "patch-" and ".MPQ"
 	middle := filename[6 : len(filename)-4] // strip "patch-" and ".MPQ"
 	if middle == "" {
 		return false
 	}
-	// Each segment separated by '-' must be all uppercase letters (A-Z).
-	// This distinguishes mithril patches (patch-A.MPQ, patch-M.MPQ, patch-B-C.MPQ)
-	// from base game patches:
-	//   - patch-2.MPQ, patch-3.MPQ (numeric)
-	//   - patch-enUS.MPQ (has lowercase — locale patch)
+
 	segments := strings.Split(middle, "-")
+
+	// Check if first segment is a known locale (e.g., "enUS").
+	// If so, strip it and check the rest as slot segments.
+	knownLocales := map[string]bool{
+		"enUS": true, "enGB": true, "deDE": true, "frFR": true,
+		"esES": true, "esMX": true, "ruRU": true, "koKR": true,
+		"zhCN": true, "zhTW": true, "ptBR": true, "itIT": true,
+	}
+	if knownLocales[segments[0]] {
+		segments = segments[1:]
+		if len(segments) == 0 {
+			return false // just "patch-enUS.MPQ" — base game
+		}
+	}
+
+	// Each remaining segment must be all uppercase letters (A-Z).
 	for _, seg := range segments {
 		if seg == "" {
 			return false
 		}
 		for _, c := range seg {
 			if c < 'A' || c > 'Z' {
-				return false
+				return false // has digits or lowercase — not ours
 			}
 		}
 	}
@@ -385,45 +471,57 @@ func runModStatus(args []string) error {
 	fmt.Printf("  Total baseline DBCs: %d\n", len(manifest.Files))
 	fmt.Println()
 
-	// If a specific mod requested
+	// Helper to print status for one mod
+	printModStatus := func(mod string) {
+		modifiedDBCs := findModifiedDBCsInMod(cfg, mod)
+		modifiedAddons := findModifiedAddons(cfg, mod)
+
+		if len(modifiedDBCs) == 0 && len(modifiedAddons) == 0 {
+			fmt.Printf("  %s: no modifications\n", mod)
+			return
+		}
+
+		slot := ""
+		if meta, err := loadModMeta(cfg, mod); err == nil && meta.PatchSlot != "" {
+			slot = " (patch-" + meta.PatchSlot + ")"
+		}
+		fmt.Printf("  %s%s:\n", mod, slot)
+		for _, name := range modifiedDBCs {
+			fmt.Printf("    ✏ dbc: %s\n", name)
+		}
+		for _, name := range modifiedAddons {
+			fmt.Printf("    ✏ addon: %s\n", name)
+		}
+	}
+
 	if modName != "" {
 		if _, err := os.Stat(filepath.Join(cfg.ModDir(modName), "mod.json")); os.IsNotExist(err) {
 			return fmt.Errorf("mod not found: %s", modName)
 		}
-		modified := findModifiedDBCsInMod(cfg, modName)
-		if len(modified) == 0 {
-			fmt.Printf("Mod '%s': no modifications\n", modName)
-		} else {
-			fmt.Printf("Mod '%s': %d modified DBC(s)\n", modName, len(modified))
-			for _, name := range modified {
-				fmt.Printf("  ✏ %s\n", name)
-			}
-		}
+		printModStatus(modName)
 	} else {
-		// Show all mods
 		mods := getAllMods(cfg)
 		if len(mods) == 0 {
 			fmt.Println("No mods created. Run 'mithril mod create <name>' to start.")
 			return nil
 		}
-
 		for _, mod := range mods {
-			modified := findModifiedDBCsInMod(cfg, mod)
-			if len(modified) == 0 {
-				fmt.Printf("  %s: no modifications\n", mod)
-			} else {
-				fmt.Printf("  %s: %d modified DBC(s)\n", mod, len(modified))
-				for _, name := range modified {
-					fmt.Printf("    ✏ %s\n", name)
-				}
-			}
+			printModStatus(mod)
 		}
 	}
 
-	// Check if patch-M.MPQ exists
-	patchPath := filepath.Join(cfg.ClientDir, "Data", "patch-M.MPQ")
-	if info, err := os.Stat(patchPath); err == nil {
-		fmt.Printf("\nActive patch: %s (%d bytes)\n", filepath.Base(patchPath), info.Size())
+	// Show active mithril patches
+	clientDataDir := filepath.Join(cfg.ClientDir, "Data")
+	locale := detectLocaleFromManifest(cfg)
+	clientLocaleDir := filepath.Join(clientDataDir, locale)
+	activePatches := listMithrilPatches(clientDataDir)
+	activeLocalePatches := listMithrilPatches(clientLocaleDir)
+	allActive := append(activePatches, activeLocalePatches...)
+	if len(allActive) > 0 {
+		fmt.Println("\nActive mithril patches:")
+		for _, p := range allActive {
+			fmt.Printf("  %s\n", p)
+		}
 	}
 
 	return nil

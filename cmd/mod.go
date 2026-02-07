@@ -30,11 +30,20 @@ Commands:
   dbc set <dbc> --mod <name> --where <key>=<val> --set <col>=<val>
                             Programmatically edit a DBC field
 
+  addon list                List all baseline addon files
+  addon search <pattern> [--mod <name>]
+                            Search addon files (regex)
+  addon edit <path> --mod <name>
+                            Edit an addon file (lua/xml/toc)
+
 Examples:
   mithril mod init
   mithril mod create my-spell-mod
   mithril mod dbc set Spell --mod my-spell-mod --where id=133 --set spell_name_enUS="Mithril Bolt"
   mithril mod build --mod my-spell-mod
+  mithril mod addon list
+  mithril mod addon search "SpellBook"
+  mithril mod addon edit Interface/FrameXML/SpellBookFrame.lua --mod my-mod
   mithril mod build
   mithril mod list
 `
@@ -70,6 +79,12 @@ func runMod(args []string) error {
 			return fmt.Errorf("mod dbc requires a subcommand: list, search, inspect, edit, set")
 		}
 		return runModDBC(args[1], args[2:])
+	case "addon":
+		if len(args) < 2 {
+			fmt.Print(modUsage)
+			return fmt.Errorf("mod addon requires a subcommand: list, search, edit")
+		}
+		return runModAddon(args[1], args[2:])
 	case "-h", "--help", "help":
 		fmt.Print(modUsage)
 		return nil

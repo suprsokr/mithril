@@ -124,12 +124,14 @@ mithril mod build
 The build process:
 1. Compares each mod's CSVs against the baseline to find actual changes
 2. Converts modified CSVs back to binary DBC format
-3. Creates a **per-mod MPQ** in `modules/build/` (e.g., `patch-A.MPQ`) for individual testing
-4. Creates a **combined `patch-M.MPQ`** with all mods merged, also in `modules/build/`
-5. Deploys `patch-M.MPQ` to `client/Data/`
-6. Copies modified `.dbc` files to the **server's `data/dbc/`** directory
+3. Creates a **per-mod DBC MPQ** in `modules/build/` (e.g., `patch-A.MPQ`)
+4. If the mod also has addon changes, creates a **per-mod addon MPQ** (e.g., `patch-enUS-A.MPQ`)
+5. Creates combined MPQs (`patch-M.MPQ` for DBCs, `patch-enUS-M.MPQ` for addons) when building all mods
+6. Deploys DBC MPQ to `client/Data/`, addon MPQ to `client/Data/<locale>/`
+7. Copies modified `.dbc` files to the **server's `data/dbc/`** directory
+8. Cleans any previous mithril patches from the client before deploying
 
-All patch slots (A-L, AA-LL) and M sort after `patch-3.MPQ` (letters sort above numbers), so mod changes override the originals. `patch-M.MPQ` sorts last, ensuring the combined build has the highest priority.
+DBC and addon files are kept in separate MPQs because the WoW client loads addon files from locale-specific archives (`Data/enUS/`) with higher priority. All letter-based patches sort after `patch-3.MPQ`, ensuring mod changes override the originals.
 
 ### Client vs. Server
 
@@ -148,56 +150,6 @@ Both are updated automatically by `mithril mod build`. After building:
 ## CSV Format
 
 Each DBC is exported as a standard CSV with a header row of named columns. The column names come from 97 embedded schema definitions covering all major 3.3.5a DBCs.
-
-### Field Types
-
-| Type | CSV Representation | Example |
-|---|---|---|
-| `uint32` | Integer | `133` |
-| `int32` | Signed integer | `-1` |
-| `float` | Decimal | `3.5` |
-| `string` | Text value | `Fireball` |
-| `Loc` | Expands to 17 columns (16 locales + flags) | `spell_name_enUS`, `spell_name_deDE`, ... `spell_name_flags` |
-| Array (`count > 1`) | Expands to N columns with `_1`, `_2` suffixes | `effect_1`, `effect_2`, `effect_3` |
-
-### Locale Columns
-
-Localized string fields (type `Loc`) expand to 17 CSV columns:
-
-| Column | Locale |
-|---|---|
-| `*_enUS` | English (US) |
-| `*_koKR` | Korean |
-| `*_frFR` | French |
-| `*_deDE` | German |
-| `*_enCN` | English (China) |
-| `*_enTW` | English (Taiwan) |
-| `*_esES` | Spanish (Spain) |
-| `*_esMX` | Spanish (Mexico) |
-| `*_ruRU` | Russian |
-| `*_jaJP` | Japanese |
-| `*_ptPT` | Portuguese |
-| `*_itIT` | Italian |
-| `*_unknown1-4` | Unused |
-| `*_flags` | Locale flags bitmask |
-
-For most mods, you only need to edit `*_enUS`.
-
-## Common DBC Files
-
-| DBC | Records | Description |
-|---|---|---|
-| Spell | ~49,800 | All spells, abilities, and effects |
-| Item | ~2,500 | Item display properties |
-| Talent | ~600 | Talent tree entries |
-| Chrclasses | ~12 | Character classes |
-| Chrraces | ~15 | Character races |
-| Creaturefamily | ~50 | Pet families |
-| Skillline | ~800 | Skill definitions |
-| Map | ~130 | Map/instance definitions |
-| Areatable | ~3,500 | Zone and area definitions |
-| Spellicon | ~4,800 | Spell icon references |
-| Achievement | ~2,500 | Achievement definitions |
 
 ## Multiple Mods
 

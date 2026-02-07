@@ -27,10 +27,11 @@ Mods are:
 
 WoW 3.3.5a loads data from MPQ archives in a specific order (the "patch chain"). Archives loaded later override files from earlier archives. Mithril assigns each mod a **patch slot** (A, B, C, ... L, then AA, AB, ...) and generates:
 
-- **Per-mod MPQs** (`patch-A.MPQ`, `patch-B.MPQ`, ...) in `modules/build/` for individual testing
-- **Combined `patch-M.MPQ`** merging all mods, deployed to `client/Data/`
+- **Per-mod DBC MPQs** (`patch-A.MPQ`, `patch-B.MPQ`, ...) in `modules/build/`
+- **Per-mod addon MPQs** (`patch-enUS-A.MPQ`, ...) in `modules/build/` — locale-specific
+- **Combined** `patch-M.MPQ` (DBCs) and `patch-enUS-M.MPQ` (addons), deployed to the client
 
-All these sort after `patch-3.MPQ` (letters sort above numbers in the patch chain), ensuring mod changes take priority over the base game. Slot M is reserved for the combined build, so it always loads last.
+DBC files go in non-locale MPQs (`Data/patch-M.MPQ`), while addon files go in locale-specific MPQs (`Data/enUS/patch-enUS-M.MPQ`) because the WoW client loads addon files from locale archives with higher priority. All letter-based patches sort after `patch-3.MPQ`, ensuring mod changes take priority over the base game.
 
 ## Directory Structure
 
@@ -58,9 +59,11 @@ mithril-data/
     │       └── Item.dbc.csv
     │
     └── build/                      # Build artifacts
-        ├── patch-A.MPQ             # Per-mod MPQ (my-spell-mod, slot A)
-        ├── patch-B.MPQ             # Per-mod MPQ (my-item-mod, slot B)
-        └── patch-M.MPQ             # Combined MPQ (all mods merged)
+        ├── patch-A.MPQ             # Per-mod DBC MPQ (my-spell-mod)
+        ├── patch-enUS-A.MPQ        # Per-mod addon MPQ (my-spell-mod)
+        ├── patch-B.MPQ             # Per-mod DBC MPQ (my-item-mod)
+        ├── patch-M.MPQ             # Combined DBC MPQ
+        └── patch-enUS-M.MPQ        # Combined addon MPQ
 ```
 
 ## Commands
@@ -71,22 +74,27 @@ mithril-data/
 | `mithril mod create <name>` | Create a new named mod |
 | `mithril mod list` | List all mods and their status |
 | `mithril mod status [--mod <name>]` | Show which DBCs a mod has changed |
-| `mithril mod build [--mod <name>]` | Build `patch-M.MPQ` from one or all mods |
+| `mithril mod build [--mod <name>]` | Build patch MPQs from one or all mods |
 
 See [DBC Workflow](dbc-workflow.md) for the DBC-specific commands and workflow.
+
+See [Addons Workflow](addons-workflow.md) for addon-specific commands and workflow.
 
 ## Supported Modding Workflows
 
 ### DBC Editing
 
-The primary modding workflow today. DBC files define game data: spells, items, talents, creatures, maps, and more. See [DBC Workflow](dbc-workflow.md) for the full guide.
+DBC files define game data: spells, items, talents, creatures, maps, and more. See [DBC Workflow](dbc-workflow.md) for the full guide.
+
+### Addon / UI Modding
+
+The WoW client's built-in UI is implemented as Lua/XML addons inside the MPQ archives. Mithril extracts all 465+ addon files (`.lua`, `.xml`, `.toc`) from the client's locale MPQs to the baseline, and lets you override them per-mod. Addon modifications go into locale-specific MPQs (`patch-enUS-M.MPQ`) to ensure they have higher priority than the base UI files. See [Addon Workflow](addons-workflow.md) for the full guide.
 
 ### Future Workflows
 
 The modding framework is designed to support additional workflows as they're implemented:
 
 - **SQL patches** — Server-side database changes (creature stats, loot tables, quest scripts)
-- **Lua scripts** — Custom UI addons and server-side scripting
 - **Asset replacement** — Textures, models, and other art assets
 - **Map editing** — ADT/WDT terrain modifications
 
