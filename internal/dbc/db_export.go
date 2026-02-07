@@ -31,17 +31,17 @@ func ExportModifiedDBCs(db *sql.DB, metaFiles []string, baselineDir, exportDir s
 			continue
 		}
 
-		// Compare checksums to detect changes
+		// Compare current checksum against baseline (stored at import time)
 		currentCS, err := GetTableChecksum(db, tableName)
 		if err != nil {
 			continue
 		}
-		storedCS, err := GetStoredChecksum(db, tableName)
+		baselineCS, err := GetStoredChecksum(db, tableName)
 		if err != nil {
 			continue
 		}
-		if currentCS == storedCS {
-			continue // no changes
+		if currentCS == baselineCS {
+			continue // table matches baseline — no modifications
 		}
 
 		// Export the table
@@ -55,11 +55,6 @@ func ExportModifiedDBCs(db *sql.DB, metaFiles []string, baselineDir, exportDir s
 		if err := WriteDBC(dbcFile, meta, outPath); err != nil {
 			fmt.Printf("    ⚠ Failed to write %s: %v\n", meta.File, err)
 			continue
-		}
-
-		// Update stored checksum
-		if err := UpdateChecksum(db, tableName, currentCS); err != nil {
-			fmt.Printf("    ⚠ Failed to update checksum for %s: %v\n", tableName, err)
 		}
 
 		exported = append(exported, tableName)

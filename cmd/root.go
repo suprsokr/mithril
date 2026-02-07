@@ -26,7 +26,7 @@ Commands:
   mod create       Create a new named mod
   mod list         List all mods
   mod status       Show which DBCs have been modified
-  mod build        Build patch-M.MPQ (one mod or all)
+  mod build        Build combined patch MPQ from all mods
   mod dbc list     List all baseline DBC files
   mod dbc search   Search across DBC tables
   mod dbc inspect  Show schema and sample records for a DBC

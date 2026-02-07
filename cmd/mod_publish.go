@@ -72,33 +72,30 @@ func runModPublishExport(args []string) error {
 	clientDir := filepath.Join(releaseDir, "client")
 	os.RemoveAll(clientDir)
 
-	sa := loadSlotAssignments(cfg)
-	slot := getSlot(sa, modName)
-	if slot == "" {
-		slot = "A"
-	}
-
 	hasClient := false
 	locale := detectLocaleFromManifest(cfg)
 
 	// Copy DBC MPQ
-	dbcMpq := filepath.Join(cfg.ModulesBuildDir, "patch-"+slot+".MPQ")
+	patchLetter := cfg.PatchLetter
+	dbcMpqName := "patch-" + patchLetter + ".MPQ"
+	dbcMpq := filepath.Join(cfg.ModulesBuildDir, dbcMpqName)
 	if _, err := os.Stat(dbcMpq); err == nil {
 		destDir := filepath.Join(clientDir, "Data")
 		os.MkdirAll(destDir, 0755)
-		copyFile(dbcMpq, filepath.Join(destDir, "patch-"+slot+".MPQ"))
+		copyFile(dbcMpq, filepath.Join(destDir, dbcMpqName))
 		hasClient = true
-		fmt.Printf("  ✓ Client DBC: Data/patch-%s.MPQ\n", slot)
+		fmt.Printf("  ✓ Client DBC: Data/%s\n", dbcMpqName)
 	}
 
 	// Copy addon MPQ
-	addonMpq := filepath.Join(cfg.ModulesBuildDir, "patch-"+locale+"-"+slot+".MPQ")
+	addonMpqName := "patch-" + locale + "-" + patchLetter + ".MPQ"
+	addonMpq := filepath.Join(cfg.ModulesBuildDir, addonMpqName)
 	if _, err := os.Stat(addonMpq); err == nil {
 		destDir := filepath.Join(clientDir, "Data", locale)
 		os.MkdirAll(destDir, 0755)
-		copyFile(addonMpq, filepath.Join(destDir, "patch-"+locale+"-"+slot+".MPQ"))
+		copyFile(addonMpq, filepath.Join(destDir, addonMpqName))
 		hasClient = true
-		fmt.Printf("  ✓ Client addons: Data/%s/patch-%s-%s.MPQ\n", locale, locale, slot)
+		fmt.Printf("  ✓ Client addons: Data/%s/%s\n", locale, addonMpqName)
 	}
 
 	// Copy binary patches
@@ -178,7 +175,7 @@ func runModPublishExport(args []string) error {
 	}
 
 	if !hasClient && !hasServer {
-		fmt.Println("No artifacts to export. Run 'mithril mod build --mod " + modName + "' first.")
+		fmt.Println("No artifacts to export. Run 'mithril mod build' first.")
 		return nil
 	}
 

@@ -19,7 +19,7 @@ Commands:
   create <name>             Create a new mod
   list                      List all mods and their status
   status [--mod <name>]     Show which DBCs a mod has changed
-  build [--mod <name>]      Build patch-M.MPQ (one mod or all)
+  build                     Build combined patch MPQ from all mods
 
   dbc list                  List all DBC tables
   dbc search <pattern>      Search across DBC tables
@@ -69,7 +69,7 @@ Examples:
   mithril mod create my-spell-mod
   mithril mod dbc query "SELECT id, spell_name_enus FROM spell WHERE id = 133"
   mithril mod sql create rename_spell --mod my-spell-mod --db dbc
-  mithril mod build --mod my-spell-mod
+  mithril mod build
   mithril mod addon list
   mithril mod addon search "SpellBook"
   mithril mod addon edit Interface/FrameXML/SpellBookFrame.lua --mod my-mod
@@ -92,56 +92,6 @@ type ModMeta struct {
 	CreatedAt   string `json:"created_at"`
 }
 
-// SlotAssignments maps mod names to their assigned patch slots.
-// Stored in modules/slot_assignments.json — local only, not committed to mod repos.
-type SlotAssignments struct {
-	Slots map[string]string `json:"slots"`
-}
-
-// loadSlotAssignments loads the slot assignments file.
-func loadSlotAssignments(cfg *Config) *SlotAssignments {
-	path := filepath.Join(cfg.ModulesDir, "slot_assignments.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return &SlotAssignments{Slots: make(map[string]string)}
-	}
-	var sa SlotAssignments
-	if err := json.Unmarshal(data, &sa); err != nil {
-		return &SlotAssignments{Slots: make(map[string]string)}
-	}
-	if sa.Slots == nil {
-		sa.Slots = make(map[string]string)
-	}
-	return &sa
-}
-
-// saveSlotAssignments writes the slot assignments file.
-func saveSlotAssignments(cfg *Config, sa *SlotAssignments) error {
-	path := filepath.Join(cfg.ModulesDir, "slot_assignments.json")
-	data, err := json.MarshalIndent(sa, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0644)
-}
-
-// getOrAssignSlot returns the patch slot for a mod, assigning one if needed.
-func getOrAssignSlot(cfg *Config, sa *SlotAssignments, modName string) (string, error) {
-	if slot, ok := sa.Slots[modName]; ok && slot != "" {
-		return slot, nil
-	}
-	slot, err := nextFreeSlot(sa)
-	if err != nil {
-		return "", err
-	}
-	sa.Slots[modName] = slot
-	return slot, nil
-}
-
-// getSlot returns the patch slot for a mod, or empty string if not assigned.
-func getSlot(sa *SlotAssignments, modName string) string {
-	return sa.Slots[modName]
-}
 
 func runMod(args []string) error {
 	if len(args) == 0 {
@@ -254,7 +204,7 @@ func runModCreate(args []string) error {
 	fmt.Println("Next steps:")
 	fmt.Printf("  mithril mod dbc query \"SELECT id, spell_name_enus FROM spell LIMIT 5\"\n")
 	fmt.Printf("  mithril mod sql create my_change --mod %s --db dbc\n", modName)
-	fmt.Printf("  mithril mod build --mod %s\n", modName)
+	fmt.Println("  mithril mod build")
 
 	return nil
 }
@@ -284,17 +234,11 @@ func runModList(args []string) error {
 		return nil
 	}
 
-	sa := loadSlotAssignments(cfg)
-
-	fmt.Printf("%-25s %-12s %s\n", "Mod", "Patch Slot", "SQL Migrations")
-	fmt.Println(strings.Repeat("-", 55))
+	fmt.Printf("%-25s %s\n", "Mod", "SQL Migrations")
+	fmt.Println(strings.Repeat("-", 40))
 	for _, mod := range mods {
-		slot := "(unassigned)"
-		if s := getSlot(sa, mod); s != "" {
-			slot = "patch-" + s
-		}
 		migrations := findMigrations(cfg, mod)
-		fmt.Printf("%-25s %-12s %d\n", mod, slot, len(migrations))
+		fmt.Printf("%-25s %d\n", mod, len(migrations))
 	}
 
 	return nil
@@ -376,42 +320,3 @@ func loadModMeta(cfg *Config, modName string) (*ModMeta, error) {
 	return &meta, nil
 }
 
-// patchSlotSequence generates the sequence: A, B, C, ... L, AA, AB, ... AL, BA, ...
-// M is reserved for the combined patch.
-var reservedSlots = map[string]bool{"M": true}
-
-func nextFreeSlot(sa *SlotAssignments) (string, error) {
-	// Collect all slots already in use
-	used := make(map[string]bool)
-	for _, slot := range sa.Slots {
-		used[slot] = true
-	}
-
-	// Generate slots in order: A-L, then AA-AL, BA-BL, etc.
-	for _, slot := range generateSlotSequence() {
-		if !used[slot] && !reservedSlots[slot] {
-			return slot, nil
-		}
-	}
-
-	return "", fmt.Errorf("no available patch slots (too many mods)")
-}
-
-func generateSlotSequence() []string {
-	letters := "ABCDEFGHIJKL"
-	var slots []string
-
-	// Single letter: A through L
-	for _, c := range letters {
-		slots = append(slots, string(c))
-	}
-
-	// Double letter: AA through LL
-	for _, c1 := range letters {
-		for _, c2 := range letters {
-			slots = append(slots, string(c1)+string(c2))
-		}
-	}
-
-	return slots
-}

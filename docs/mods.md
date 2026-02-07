@@ -33,13 +33,18 @@ Mods are:
 
 ### Patch Chain
 
-WoW 3.3.5a loads data from MPQ archives in a specific order (the "patch chain"). Archives loaded later override files from earlier archives. Mithril assigns each mod a **patch slot** (A, B, C, ... L, then AA, AB, ...) at build time and generates:
+WoW 3.3.5a loads data from MPQ archives in a specific order (the "patch chain"). Archives loaded later override files from earlier archives. `mithril mod build` always builds all mods together and generates:
 
-- **Per-mod DBC MPQs** (`patch-A.MPQ`, `patch-B.MPQ`, ...) in `modules/build/`
-- **Per-mod addon MPQs** (`patch-enUS-A.MPQ`, ...) in `modules/build/` — locale-specific
-- **Combined** `patch-M.MPQ` (DBCs) and `patch-enUS-M.MPQ` (addons), deployed to the client
+- **`patch-M.MPQ`** (DBCs) in `modules/build/` and deployed to `client/Data/`
+- **`patch-enUS-M.MPQ`** (addons) in `modules/build/` and deployed to `client/Data/enUS/`
 
 DBC files go in non-locale MPQs (`Data/patch-M.MPQ`), while addon files go in locale-specific MPQs (`Data/enUS/patch-enUS-M.MPQ`) because the WoW client loads addon files from locale archives with higher priority. All letter-based patches sort after `patch-3.MPQ`, ensuring mod changes take priority over the base game.
+
+The patch letter (default "M") can be customized in `mithril-data/mithril.json`:
+
+```json
+{"patch_letter": "Z"}
+```
 
 ## Directory Structure
 
@@ -79,11 +84,8 @@ mithril-data/
     │       └── 001_custom_item.rollback.sql
     │
     └── build/                      # Build artifacts
-        ├── patch-A.MPQ             # Per-mod DBC MPQ (my-spell-mod)
-        ├── patch-enUS-A.MPQ        # Per-mod addon MPQ (my-spell-mod)
-        ├── patch-B.MPQ             # Per-mod DBC MPQ (my-item-mod)
-        ├── patch-M.MPQ             # Combined DBC MPQ
-        └── patch-enUS-M.MPQ        # Combined addon MPQ
+        ├── patch-M.MPQ             # Combined DBC MPQ (all mods)
+        └── patch-enUS-M.MPQ        # Combined addon MPQ (all mods)
 ```
 
 ## Commands
@@ -94,7 +96,7 @@ mithril-data/
 | `mithril mod create <name>` | Create a new named mod |
 | `mithril mod list` | List all mods and their status |
 | `mithril mod status [--mod <name>]` | Show what a mod has changed |
-| `mithril mod build [--mod <name>]` | Build patch MPQs from one or all mods |
+| `mithril mod build` | Build combined patch MPQs from all mods |
 
 Each mod type has its own set of commands documented in the workflow guides:
 

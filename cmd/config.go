@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Config holds paths and settings used across all commands.
@@ -48,6 +50,10 @@ type Config struct {
 	// DockerProjectName is the compose project name.
 	DockerProjectName string
 
+	// PatchLetter is the letter used for the combined patch MPQ (e.g., "M" → patch-M.MPQ).
+	// Must be uppercase A-Z. Defaults to "M".
+	PatchLetter string
+
 	// MySQL credentials.
 	MySQLRootPassword string
 	MySQLUser         string
@@ -59,7 +65,7 @@ func DefaultConfig() *Config {
 	cwd, _ := os.Getwd()
 	dir := filepath.Join(cwd, "mithril-data")
 
-	return &Config{
+	cfg := &Config{
 		MithrilDir:        dir,
 		SourceDir:         filepath.Join(dir, "TrinityCore"),
 		ServerDir:         "/opt/trinitycore",
@@ -73,9 +79,35 @@ func DefaultConfig() *Config {
 		ServerDbcDir:      filepath.Join(dir, "data", "dbc"),
 		DockerComposeFile: filepath.Join(dir, "docker-compose.yml"),
 		DockerProjectName: "mithril",
+		PatchLetter:       "M",
 		MySQLRootPassword: "mithril",
 		MySQLUser:         "trinity",
 		MySQLPassword:     "trinity",
+	}
+
+	// Load workspace config overrides from mithril.json if present
+	cfg.loadWorkspaceConfig()
+
+	return cfg
+}
+
+// workspaceConfig represents the user-editable settings in mithril.json.
+type workspaceConfig struct {
+	PatchLetter string `json:"patch_letter,omitempty"`
+}
+
+// loadWorkspaceConfig reads mithril-data/mithril.json and applies overrides.
+func (c *Config) loadWorkspaceConfig() {
+	data, err := os.ReadFile(filepath.Join(c.MithrilDir, "mithril.json"))
+	if err != nil {
+		return // file doesn't exist or can't be read — use defaults
+	}
+	var wc workspaceConfig
+	if err := json.Unmarshal(data, &wc); err != nil {
+		return
+	}
+	if letter := strings.TrimSpace(wc.PatchLetter); letter != "" {
+		c.PatchLetter = strings.ToUpper(letter)
 	}
 }
 

@@ -8,9 +8,8 @@ This document orients AI agents working in this codebase. Read it first, then fo
 
 - **Baseline** — Pristine game data extracted from the WoW client MPQs. Stored in `mithril-data/modules/baseline/`. Never edited directly.
 - **Mod** — A named directory under `mithril-data/modules/<mod-name>/` containing only the files the mod changes. Mods are independent, composable, and minimal.
-- **Patch slot** — Each mod is assigned a letter (A, B, C, … L, AA, AB, …) at build time. Slot M is reserved for the combined build. Determines MPQ filenames (`patch-A.MPQ`, etc.). Stored locally in `modules/slot_assignments.json`, not in `mod.json`.
 - **Patch chain** — WoW loads MPQs in order; later archives override earlier ones. Letter-based patches sort after `patch-3.MPQ`, so mod changes always win.
-- **Build** — `mithril mod build` converts mod changes into MPQ archives for the client and flat DBC files for the server.
+- **Build** — `mithril mod build` always builds all mods together into combined MPQ archives (`patch-M.MPQ`, `patch-enUS-M.MPQ`) for the client and flat DBC files for the server. The patch letter (default "M") is configurable via `mithril-data/mithril.json`.
 
 ## Lifecycle: From Zero to Running Mod
 
@@ -29,7 +28,7 @@ mithril mod sql create add_npc --mod my-mod
 mithril mod patch apply allow-custom-gluexml
 
 # --- Build and deploy ---
-mithril mod build --mod my-mod        # 6. Build MPQs, deploy to client + server
+mithril mod build                     # 6. Build MPQs, deploy to client + server
 mithril mod sql apply --mod my-mod    # 7. Apply SQL migrations (server must be running)
 mithril server restart                # 8. Restart server for DBC/SQL changes to take effect
 ```
@@ -74,7 +73,7 @@ mithril mod init                          # Extract baseline from client MPQs
 mithril mod create <name>                 # Create a new mod
 mithril mod list                          # List all mods
 mithril mod status [--mod <name>]         # Show what changed vs baseline
-mithril mod build [--mod <name>]          # Build patch MPQs and deploy
+mithril mod build                         # Build combined patch MPQs and deploy
 ```
 
 ### DBC Editing
@@ -168,8 +167,7 @@ mithril-data/                           # Root data directory (created by mithri
 │   │   ├── sql/dbc/                    # DBC SQL migrations (forward + rollback pairs)
 │   │   ├── binary-patches/             # Custom binary patches (JSON)
 │   │   └── core-patches/              # TrinityCore C++ patches (.patch)
-│   ├── build/                          # Build artifacts (per-mod and combined MPQs)
-│   ├── slot_assignments.json           # Local patch slot assignments (not committed)
+│   ├── build/                          # Build artifacts (combined MPQs)
 │   ├── sql_migrations_applied.json     # Migration tracking
 │   ├── core_patches_applied.json       # Core patch tracking
 │   └── binary_patches_applied.json     # Binary patch tracking
@@ -239,8 +237,8 @@ mithril/
 ### Creating a mod end-to-end
 
 1. `mithril mod create <name>` — creates the mod directory and `mod.json`
-2. Make changes using `dbc set`, `addon edit`, `sql create`, etc.
-3. `mithril mod build --mod <name>` — builds and deploys to client + server
+2. Make changes using `addon edit`, `sql create`, etc.
+3. `mithril mod build` — builds all mods and deploys to client + server
 4. `mithril mod sql apply --mod <name>` — applies SQL migrations (if any)
 5. `mithril server restart` — picks up server-side changes
 
@@ -253,11 +251,11 @@ mithril mod dbc query "DESCRIBE areatable"                      # See schema
 mithril mod dbc query "SELECT id, name_enus, flags FROM areatable WHERE map_id = 0 LIMIT 5"  # Explore data
 mithril mod sql create enable_flying --mod my-mod --db dbc      # Create forward + rollback pair
 # Edit both: sql/dbc/001_enable_flying.sql and sql/dbc/001_enable_flying.rollback.sql
-mithril mod build --mod my-mod           # Applies migration + exports + packages
+mithril mod build                        # Applies migration + exports + packages
 
 # Iterating? Edit the .sql file, then:
 mithril mod sql rollback --mod my-mod --reapply
-mithril mod build --mod my-mod
+mithril mod build
 ```
 
 ### Writing SQL migrations
@@ -277,13 +275,12 @@ mithril mod addon search "SpellButton"   # Search all addon Lua/XML/TOC files
 
 ### Understanding the build output
 
-`mithril mod build` does all of the following:
+`mithril mod build` always builds all mods together. It does the following:
 1. Applies pending DBC SQL migrations
-2. Exports modified DBC tables → binary `.dbc` files (using CHECKSUM TABLE for change detection)
-3. Creates per-mod MPQs in `modules/build/` (`patch-<slot>.MPQ` for DBCs, `patch-enUS-<slot>.MPQ` for addons)
-4. Creates combined MPQs (`patch-M.MPQ`, `patch-enUS-M.MPQ`) when building all mods
-5. Deploys DBC MPQ → `client/Data/`, addon MPQ → `client/Data/enUS/`
-6. Copies modified `.dbc` files → server's `data/dbc/` directory
+2. Exports modified DBC tables → binary `.dbc` files (comparing checksums against baseline for change detection)
+3. Creates combined MPQs (`patch-M.MPQ` for DBCs, `patch-enUS-M.MPQ` for addons) in `modules/build/`
+4. Deploys DBC MPQ → `client/Data/`, addon MPQ → `client/Data/enUS/`
+5. Copies modified `.dbc` files → server's `data/dbc/` directory
 
 ## Further Reading
 

@@ -21,7 +21,6 @@ type builtFile struct {
 }
 
 func runModBuild(args []string) error {
-	modNames, _ := parseModFlags(args)
 	cfg := DefaultConfig()
 
 	// Ensure baseline exists
@@ -31,23 +30,11 @@ func runModBuild(args []string) error {
 
 	fmt.Println("=== Mithril Mod Build ===")
 
-	// Determine which mods to build
-	var modsToBuild []string
-	buildAll := len(modNames) == 0
-
-	if buildAll {
-		modsToBuild = getAllMods(cfg)
-		if len(modsToBuild) == 0 {
-			fmt.Println("No mods found. Create one with 'mithril mod create <name>'.")
-			return nil
-		}
-	} else {
-		for _, name := range modNames {
-			if _, err := os.Stat(filepath.Join(cfg.ModDir(name), "mod.json")); os.IsNotExist(err) {
-				return fmt.Errorf("mod not found: %s", name)
-			}
-			modsToBuild = append(modsToBuild, name)
-		}
+	// Always build all mods
+	modsToBuild := getAllMods(cfg)
+	if len(modsToBuild) == 0 {
+		fmt.Println("No mods found. Create one with 'mithril mod create <name>'.")
+		return nil
 	}
 
 	// Ensure build directory exists
@@ -55,29 +42,11 @@ func runModBuild(args []string) error {
 		return fmt.Errorf("create build dir: %w", err)
 	}
 
-	// Phase 1: Build DBC binaries and collect addon files per mod
+	// Phase 1: Build DBC binaries and collect addon files from all mods
 	var allDbcFiles []builtFile
 	var allAddonFiles []builtFile
 	seenDBCs := make(map[string]bool)
 	seenAddons := make(map[string]bool)
-
-	// Resolve patch slots for all mods up front
-	sa := loadSlotAssignments(cfg)
-	modSlots := make(map[string]string)
-	slotsBefore := len(sa.Slots)
-	for _, mod := range modsToBuild {
-		slot, err := getOrAssignSlot(cfg, sa, mod)
-		if err != nil {
-			fmt.Printf("  ⚠ Failed to assign slot for mod '%s': %v\n", mod, err)
-			continue
-		}
-		modSlots[mod] = slot
-	}
-	if len(sa.Slots) > slotsBefore {
-		if err := saveSlotAssignments(cfg, sa); err != nil {
-			fmt.Printf("  ⚠ Failed to save slot assignments: %v\n", err)
-		}
-	}
 
 	for _, mod := range modsToBuild {
 		fmt.Printf("  Mod '%s':\n", mod)
@@ -95,31 +64,7 @@ func runModBuild(args []string) error {
 			continue
 		}
 
-		// Build per-mod DBC MPQ (non-locale)
-		slot := modSlots[mod]
-		if len(dbcFiles) > 0 && slot != "" {
-			modMpqName := "patch-" + slot + ".MPQ"
-			modMpqPath := filepath.Join(cfg.ModulesBuildDir, modMpqName)
-			if err := createMPQ(modMpqPath, dbcFiles); err != nil {
-				fmt.Printf("  ⚠ Failed to create %s: %v\n", modMpqName, err)
-			} else {
-				fmt.Printf("  ✓ %s (%d DBC file(s))\n", modMpqName, len(dbcFiles))
-			}
-		}
-
-		// Build per-mod addon MPQ (locale-specific)
-		if len(addonFiles) > 0 && slot != "" {
-			locale := detectLocaleFromManifest(cfg)
-			modAddonMpqName := "patch-" + locale + "-" + slot + ".MPQ"
-			modAddonMpqPath := filepath.Join(cfg.ModulesBuildDir, modAddonMpqName)
-			if err := createMPQ(modAddonMpqPath, addonFiles); err != nil {
-				fmt.Printf("  ⚠ Failed to create %s: %v\n", modAddonMpqName, err)
-			} else {
-				fmt.Printf("  ✓ %s (%d addon file(s))\n", modAddonMpqName, len(addonFiles))
-			}
-		}
-
-		// Add to combined lists
+		// Add to combined lists (later mods override earlier ones for the same file)
 		for _, bf := range dbcFiles {
 			key := strings.ToLower(bf.mpqPath)
 			if !seenDBCs[key] {
@@ -141,24 +86,10 @@ func runModBuild(args []string) error {
 		return nil
 	}
 
-	// Phase 2: Determine client patch names and deploy.
+	// Phase 2: Build and deploy combined MPQs.
 	clientDataDir := filepath.Join(cfg.ClientDir, "Data")
 	locale := detectLocaleFromManifest(cfg)
 	clientLocaleDir := filepath.Join(clientDataDir, locale)
-
-	var slotSuffix string
-	if buildAll {
-		slotSuffix = "M"
-	} else {
-		var slots []string
-		for _, mod := range modsToBuild {
-			if s, ok := modSlots[mod]; ok {
-				slots = append(slots, s)
-			}
-		}
-		sort.Strings(slots)
-		slotSuffix = strings.Join(slots, "-")
-	}
 
 	// Clean all mithril patches from both Data/ and Data/<locale>/
 	cleanedCount := cleanMithrilPatches(clientDataDir)
@@ -169,7 +100,7 @@ func runModBuild(args []string) error {
 
 	// Deploy DBC MPQ to Data/
 	if len(allDbcFiles) > 0 {
-		dbcMpqName := "patch-" + slotSuffix + ".MPQ"
+		dbcMpqName := "patch-" + cfg.PatchLetter + ".MPQ"
 		buildDbcMpqPath := filepath.Join(cfg.ModulesBuildDir, dbcMpqName)
 		fmt.Printf("\nBuilding %s (%d DBC files)...\n", dbcMpqName, len(allDbcFiles))
 		if err := createMPQ(buildDbcMpqPath, allDbcFiles); err != nil {
@@ -183,7 +114,7 @@ func runModBuild(args []string) error {
 
 	// Deploy addon MPQ to Data/<locale>/
 	if len(allAddonFiles) > 0 {
-		addonMpqName := "patch-" + locale + "-" + slotSuffix + ".MPQ"
+		addonMpqName := "patch-" + locale + "-" + cfg.PatchLetter + ".MPQ"
 		buildAddonMpqPath := filepath.Join(cfg.ModulesBuildDir, addonMpqName)
 		fmt.Printf("Building %s (%d addon files)...\n", addonMpqName, len(allAddonFiles))
 		if err := createMPQ(buildAddonMpqPath, allAddonFiles); err != nil {
@@ -215,26 +146,11 @@ func runModBuild(args []string) error {
 	fmt.Printf("\n=== Build Complete ===\n")
 	fmt.Printf("  Mods:     %s\n", label)
 	fmt.Println()
-	fmt.Println("  Build artifacts (modules/build/):")
-	for _, mod := range modsToBuild {
-		slot := modSlots[mod]
-		if slot != "" {
-			dbcPath := filepath.Join(cfg.ModulesBuildDir, "patch-"+slot+".MPQ")
-			if info, err := os.Stat(dbcPath); err == nil {
-				fmt.Printf("    patch-%s.MPQ  ← %s DBC (%d bytes)\n", slot, mod, info.Size())
-			}
-			addonPath := filepath.Join(cfg.ModulesBuildDir, "patch-"+locale+"-"+slot+".MPQ")
-			if info, err := os.Stat(addonPath); err == nil {
-				fmt.Printf("    patch-%s-%s.MPQ  ← %s addons (%d bytes)\n", locale, slot, mod, info.Size())
-			}
-		}
-	}
-	fmt.Println()
 	if len(allDbcFiles) > 0 {
-		fmt.Printf("  Client DBC:    Data/patch-%s.MPQ (%d files)\n", slotSuffix, len(allDbcFiles))
+		fmt.Printf("  Client DBC:    Data/patch-%s.MPQ (%d files)\n", cfg.PatchLetter, len(allDbcFiles))
 	}
 	if len(allAddonFiles) > 0 {
-		fmt.Printf("  Client addons: Data/%s/patch-%s-%s.MPQ (%d files)\n", locale, locale, slotSuffix, len(allAddonFiles))
+		fmt.Printf("  Client addons: Data/%s/patch-%s-%s.MPQ (%d files)\n", locale, locale, cfg.PatchLetter, len(allAddonFiles))
 	}
 	if serverDeployed > 0 {
 		fmt.Printf("  Server:        %d DBC(s) → %s\n", serverDeployed, cfg.ServerDbcDir)
@@ -444,7 +360,6 @@ func runModStatus(args []string) error {
 
 	sqlTracker, _ := loadSQLTracker(cfg)
 	coreTracker, _ := loadCoreTracker(cfg)
-	sa := loadSlotAssignments(cfg)
 
 	// Helper to print status for one mod
 	printModStatus := func(mod string) {
@@ -457,11 +372,7 @@ func runModStatus(args []string) error {
 			return
 		}
 
-		slot := ""
-		if s := getSlot(sa, mod); s != "" {
-			slot = " (patch-" + s + ")"
-		}
-		fmt.Printf("  %s%s:\n", mod, slot)
+		fmt.Printf("  %s:\n", mod)
 		for _, name := range modifiedAddons {
 			fmt.Printf("    ✏ addon: %s\n", name)
 		}

@@ -86,7 +86,8 @@ func ImportDBC(db *sql.DB, dbcPath string, meta *MetaFile, force bool) (bool, er
 		return false, fmt.Errorf("insert records for %s: %w", tableName, err)
 	}
 
-	// Store the initial checksum so exports can detect changes
+	// Store the baseline checksum so exports can detect changes.
+	// This value is never updated — it represents the pristine imported state.
 	cs, err := GetTableChecksum(db, tableName)
 	if err == nil {
 		UpdateChecksum(db, tableName, cs)
@@ -327,6 +328,10 @@ func ensureChecksumTable(db *sql.DB) error {
 			table_name VARCHAR(255) NOT NULL PRIMARY KEY,
 			checksum BIGINT UNSIGNED NOT NULL DEFAULT 0
 		)`)
+	// Migrate: drop baseline_checksum column if present (no longer used)
+	if err == nil {
+		db.Exec("ALTER TABLE dbc_checksum DROP COLUMN baseline_checksum")
+	}
 	return err
 }
 
@@ -375,6 +380,7 @@ func UpdateChecksum(db *sql.DB, tableName string, checksum uint64) error {
 	_, err := db.Exec("UPDATE dbc_checksum SET checksum = ? WHERE table_name = ?", checksum, tableName)
 	return err
 }
+
 
 // --- Unique key validation ---
 

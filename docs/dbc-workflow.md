@@ -19,7 +19,7 @@ mithril mod sql create enable_flying --mod my-mod --db dbc
 # Edit the generated file with your SQL
 
 # 5. Build the patch (applies migration, exports DBC, packages MPQ)
-mithril mod build --mod my-mod
+mithril mod build
 
 # 6. Restart the server
 mithril server restart
@@ -48,7 +48,7 @@ Output:
 mithril mod create my-spell-mod
 ```
 
-This creates `modules/my-spell-mod/` with a `mod.json` and assigns a **patch slot** (A, B, C, ... L, AA, AB, ...) that determines the MPQ filename (e.g., `patch-A.MPQ`). Slot M is reserved for the combined build.
+This creates `modules/my-spell-mod/` with a `mod.json`.
 
 ### 3. Explore DBCs
 
@@ -128,7 +128,7 @@ Migrations are tracked — each forward migration runs only once, even across mu
 ```bash
 # Edit your .sql file, then rollback and re-apply in one command:
 mithril mod sql rollback --mod my-mod --reapply
-mithril mod build --mod my-mod
+mithril mod build
 ```
 
 This runs the `.rollback.sql` to undo the previous version, then re-applies the updated `.sql` file. See [SQL Workflow](sql-workflow.md) for details.
@@ -149,22 +149,22 @@ Shows which DBCs each mod has modified and which SQL migrations are pending.
 ### 6. Build the Patch
 
 ```bash
-# Build one mod
-mithril mod build --mod my-mod
-
-# Build all mods together
 mithril mod build
 ```
 
-The build process:
+The build always combines all mods. The build process:
 1. Applies pending DBC SQL migrations (from `sql/dbc/`) against the MySQL `dbc` database
-2. Determines which tables were touched by the SQL and exports them back to binary `.dbc` format
-3. Creates a **per-mod DBC MPQ** in `modules/build/` (e.g., `patch-A.MPQ`)
-4. If the mod also has addon changes, creates a **per-mod addon MPQ** (e.g., `patch-enUS-A.MPQ`)
-5. Creates combined MPQs (`patch-M.MPQ`, `patch-enUS-M.MPQ`) when building all mods
-6. Deploys DBC MPQ to `client/Data/`, addon MPQ to `client/Data/<locale>/`
-7. Copies modified `.dbc` files to the **server's `data/dbc/`** directory
-8. Cleans any previous mithril patches from the client before deploying
+2. Compares each table's checksum against the baseline to detect modifications and exports changed tables back to binary `.dbc` format
+3. Creates combined MPQs (`patch-M.MPQ` for DBCs, `patch-enUS-M.MPQ` for addons) in `modules/build/`
+4. Deploys DBC MPQ to `client/Data/`, addon MPQ to `client/Data/<locale>/`
+5. Copies modified `.dbc` files to the **server's `data/dbc/`** directory
+6. Cleans any previous mithril patches from the client before deploying
+
+> **Tip:** The patch letter (default "M") can be customized in `mithril-data/mithril.json`:
+> ```json
+> {"patch_letter": "Z"}
+> ```
+> This produces `patch-Z.MPQ` and `patch-enUS-Z.MPQ` instead.
 
 ### Client vs. Server
 
@@ -193,7 +193,7 @@ mithril mod sql create zero_mana --mod spell-tweaks --db dbc
 mithril mod sql create rearrange --mod custom-talents --db dbc
 ```
 
-When building all mods together (`mithril mod build`), files from all mods are combined into a single `patch-M.MPQ`. DBC SQL migrations are applied in mod-alphabetical order. SQL changes stack since they all modify the same database.
+`mithril mod build` always builds all mods together into a single `patch-M.MPQ`. DBC SQL migrations are applied in mod-alphabetical order. SQL changes stack since they all modify the same database.
 
 ## Managing the DBC Database
 
@@ -214,7 +214,7 @@ mithril mod sql rollback --mod my-mod 001_enable_flying
 mithril mod sql rollback --mod my-mod --reapply
 ```
 
-Re-importing with `--force` resets the `dbc` database to pristine baseline state. All DBC migrations will be re-applied on the next build. Use `sql rollback --reapply` for quick iteration without a full reimport.
+Re-importing with `--force` resets the `dbc` database to pristine baseline state and restores baseline checksums. All DBC migrations will need to be re-applied on the next build. Use `sql rollback --reapply` for quick iteration without a full reimport.
 
 ## Tips
 

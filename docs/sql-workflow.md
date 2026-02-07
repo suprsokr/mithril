@@ -136,12 +136,12 @@ mithril mod sql create my_change --mod my-mod --db dbc
 
 # Apply and test
 mithril mod sql apply --mod my-mod
-mithril mod build --mod my-mod     # for DBC migrations: exports + packages
+mithril mod build                  # for DBC migrations: exports + packages
 mithril server restart
 
 # Need to change the migration? Rollback → edit → reapply
 mithril mod sql rollback --mod my-mod --reapply
-mithril mod build --mod my-mod
+mithril mod build
 mithril server restart
 ```
 
