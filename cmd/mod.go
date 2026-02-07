@@ -36,6 +36,11 @@ Commands:
   addon edit <path> --mod <name>
                             Edit an addon file (lua/xml/toc)
 
+  patch list                List available binary patches
+  patch apply <name|path>   Apply a binary patch to Wow.exe
+  patch status              Show applied binary patches
+  patch restore             Restore Wow.exe from clean backup
+
 Examples:
   mithril mod init
   mithril mod create my-spell-mod
@@ -85,6 +90,12 @@ func runMod(args []string) error {
 			return fmt.Errorf("mod addon requires a subcommand: list, search, edit")
 		}
 		return runModAddon(args[1], args[2:])
+	case "patch":
+		if len(args) < 2 {
+			fmt.Print(modUsage)
+			return fmt.Errorf("mod patch requires a subcommand: list, apply, status, restore")
+		}
+		return runModPatch(args[1], args[2:])
 	case "-h", "--help", "help":
 		fmt.Print(modUsage)
 		return nil

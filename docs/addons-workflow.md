@@ -11,15 +11,20 @@ mithril mod init
 # 2. Create a mod
 mithril mod create my-ui-mod
 
-# 3. Find what to edit
+# 3. Apply the binary patch to allow GlueXML/FrameXML modifications
+mithril mod patch apply allow-custom-gluexml
+
+# 4. Find what to edit
 mithril mod addon search "SpellButton"
 
-# 4. Edit an addon file
+# 5. Edit an addon file
 mithril mod addon edit Interface/FrameXML/SpellBookFrame.lua --mod my-ui-mod
 
-# 5. Build and deploy
+# 6. Build and deploy
 mithril mod build --mod my-ui-mod
 ```
+
+> **Important:** Modifying files under `Interface/GlueXML/` or `Interface/FrameXML/` requires the `allow-custom-gluexml` binary patch. Without it, the WoW client will crash with a "corrupt interface files" error on launch. See [Binary Patches Workflow](binary-patches-workflow.md) for details.
 
 ## How It Works
 

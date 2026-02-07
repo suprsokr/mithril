@@ -6,7 +6,7 @@ Mithril provides an integrated modding framework for WoW 3.3.5a (WotLK). Mods ar
 
 ### Baseline
 
-The baseline is a pristine copy of every DBC file extracted from the client's MPQ archives. It reflects the exact state of the game data as shipped. The baseline is:
+The baseline is a pristine copy of every DBC and addon file extracted from the client's MPQ archives. It reflects the exact state of the game data as shipped. The baseline is:
 
 - Created once with `mithril mod init`
 - Stored in `modules/baseline/`
@@ -15,13 +15,19 @@ The baseline is a pristine copy of every DBC file extracted from the client's MP
 
 ### Mods
 
-A mod is a named directory under `modules/` that contains only the files it modifies. When you first edit a DBC in a mod, the baseline copy is automatically duplicated into the mod's directory. From that point, the mod's copy diverges from the baseline.
+A mod is a named directory under `modules/` that contains only the files it modifies. When you first edit a file in a mod, the baseline copy is automatically duplicated into the mod's directory. From that point, the mod's copy diverges from the baseline.
+
+A mod can contain any combination of:
+
+- **DBC edits** — Game data changes (spells, items, talents, etc.) stored as CSV files
+- **Addon edits** — UI modifications (Lua, XML, TOC files) with preserved directory structure
+- **Binary patches** — Byte-level patches to `Wow.exe` described as JSON files
 
 Mods are:
 
 - **Independent** — each mod has its own directory and tracks its own changes
 - **Composable** — multiple mods can be built together into a single patch MPQ
-- **Minimal** — a mod only contains the DBC files it actually changes, not every DBC
+- **Minimal** — a mod only contains the files it actually changes, not every file
 
 ### Patch Chain
 
@@ -46,12 +52,17 @@ mithril-data/
     ├── baseline/                   # Shared pristine reference (never edit)
     │   ├── dbc/                    # Raw .dbc binaries from MPQ chain
     │   ├── csv/                    # Baseline CSVs (pristine exports)
+    │   ├── addons/                 # Baseline addon files (lua/xml/toc)
     │   └── manifest.json           # Extraction metadata
     │
     ├── my-spell-mod/               # A named mod
     │   ├── mod.json                # Mod metadata
-    │   └── dbc/                    # Only the CSVs this mod changes
-    │       └── Spell.dbc.csv
+    │   ├── dbc/                    # Only the CSVs this mod changes
+    │   │   └── Spell.dbc.csv
+    │   ├── addons/                 # Only the addon files this mod changes
+    │   │   └── Interface/GlueXML/GlueStrings.lua
+    │   └── binary-patches/         # Binary patches for Wow.exe
+    │       └── allow-custom-gluexml.json
     │
     ├── my-item-mod/                # Another mod
     │   ├── mod.json
@@ -70,15 +81,17 @@ mithril-data/
 
 | Command | Description |
 |---|---|
-| `mithril mod init` | Extract baseline DBCs from client MPQs |
+| `mithril mod init` | Extract baseline from client MPQs (DBCs, addons) |
 | `mithril mod create <name>` | Create a new named mod |
 | `mithril mod list` | List all mods and their status |
-| `mithril mod status [--mod <name>]` | Show which DBCs a mod has changed |
+| `mithril mod status [--mod <name>]` | Show what a mod has changed |
 | `mithril mod build [--mod <name>]` | Build patch MPQs from one or all mods |
 
-See [DBC Workflow](dbc-workflow.md) for the DBC-specific commands and workflow.
+Each mod type has its own set of commands documented in the workflow guides:
 
-See [Addons Workflow](addons-workflow.md) for addon-specific commands and workflow.
+- **[DBC Workflow](dbc-workflow.md)** — `mithril mod dbc *` commands for editing game data (spells, items, talents)
+- **[Addon Workflow](addons-workflow.md)** — `mithril mod addon *` commands for modifying the client UI (Lua/XML)
+- **[Binary Patches Workflow](binary-patches-workflow.md)** — `mithril mod patch *` commands for patching the client executable
 
 ## Supported Modding Workflows
 
@@ -89,6 +102,12 @@ DBC files define game data: spells, items, talents, creatures, maps, and more. S
 ### Addon / UI Modding
 
 The WoW client's built-in UI is implemented as Lua/XML addons inside the MPQ archives. Mithril extracts all 465+ addon files (`.lua`, `.xml`, `.toc`) from the client's locale MPQs to the baseline, and lets you override them per-mod. Addon modifications go into locale-specific MPQs (`patch-enUS-M.MPQ`) to ensure they have higher priority than the base UI files. See [Addon Workflow](addons-workflow.md) for the full guide.
+
+### Binary Patches
+
+Some mods require changes to the WoW client executable itself (`Wow.exe`). For example, modifying GlueXML or FrameXML files requires disabling the client's interface integrity check. Binary patches are JSON files that describe byte-level changes at specific addresses.
+
+Binary patches are treated like any other mod content — they live in a mod's `binary-patches/` directory and can be distributed and shared. Mithril also includes built-in patches for common needs. See [Binary Patches Workflow](binary-patches-workflow.md) for the full guide.
 
 ### Future Workflows
 

@@ -35,6 +35,10 @@ Commands:
   mod addon list   List all baseline addon files
   mod addon search Search addon files (regex)
   mod addon edit   Edit an addon file in a mod
+  mod patch list   List available binary patches
+  mod patch apply  Apply a binary patch to Wow.exe
+  mod patch status Show applied binary patches
+  mod patch restore Restore Wow.exe from clean backup
 
 Flags:
   -h, --help       Show this help message
