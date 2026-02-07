@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/suprsokr/mithril/internal/dbc"
 )
 
 func runModPublish(args []string) error {
@@ -74,28 +76,139 @@ func runModPublishExport(args []string) error {
 
 	hasClient := false
 	locale := detectLocaleFromManifest(cfg)
-
-	// Copy DBC MPQ
 	patchLetter := cfg.PatchLetter
-	dbcMpqName := "patch-" + patchLetter + ".MPQ"
-	dbcMpq := filepath.Join(cfg.ModulesBuildDir, dbcMpqName)
-	if _, err := os.Stat(dbcMpq); err == nil {
-		destDir := filepath.Join(clientDir, "Data")
-		os.MkdirAll(destDir, 0755)
-		copyFile(dbcMpq, filepath.Join(destDir, dbcMpqName))
-		hasClient = true
-		fmt.Printf("  ✓ Client DBC: Data/%s\n", dbcMpqName)
+
+	// Isolated DBC build: reset database to baseline, apply only this mod's
+	// migrations, export, then restore all mods' migrations afterward.
+	dbcMigrations := findDBCMigrations(cfg, modName)
+	if len(dbcMigrations) > 0 {
+		fmt.Println("  Building isolated DBC artifacts...")
+		fmt.Println("    Resetting DBC database to baseline...")
+
+		db, err := openDBCDB(cfg)
+		if err != nil {
+			return fmt.Errorf("connect to dbc database: %w", err)
+		}
+
+		// Step 1: Reset to baseline
+		if _, _, err := dbc.ImportAllDBCs(db, cfg.BaselineDbcDir, true); err != nil {
+			db.Close()
+			return fmt.Errorf("reset DBC database: %w", err)
+		}
+
+		// Step 2: Apply only this mod's DBC migrations
+		fmt.Printf("    Applying %s DBC migrations...\n", modName)
+		for _, m := range dbcMigrations {
+			sqlContent, err := os.ReadFile(m.path)
+			if err != nil {
+				db.Close()
+				return fmt.Errorf("read migration %s: %w", m.filename, err)
+			}
+			if _, err := db.Exec(string(sqlContent)); err != nil {
+				db.Close()
+				return fmt.Errorf("apply migration %s: %w", m.filename, err)
+			}
+			fmt.Printf("    ✓ %s\n", m.filename)
+		}
+
+		// Step 3: Export modified DBC tables
+		metaFiles, err := dbc.GetEmbeddedMetaFiles()
+		if err != nil {
+			db.Close()
+			return fmt.Errorf("get meta files: %w", err)
+		}
+
+		exportDbcDir := filepath.Join(releaseDir, "dbc_export")
+		os.RemoveAll(exportDbcDir)
+		if err := os.MkdirAll(exportDbcDir, 0755); err != nil {
+			db.Close()
+			return fmt.Errorf("create export dir: %w", err)
+		}
+
+		exported, err := dbc.ExportModifiedDBCs(db, metaFiles, cfg.BaselineDbcDir, exportDbcDir)
+		if err != nil {
+			db.Close()
+			return fmt.Errorf("export modified DBCs: %w", err)
+		}
+
+		// Build file list from exported tables
+		var dbcFiles []builtFile
+		for _, tableName := range exported {
+			for _, metaFile := range metaFiles {
+				meta, err := dbc.LoadEmbeddedMeta(metaFile)
+				if err != nil {
+					continue
+				}
+				if dbc.TableName(meta) == tableName {
+					dbcOutPath := filepath.Join(exportDbcDir, meta.File)
+					mpqInternalPath := "DBFilesClient\\" + meta.File
+					dbcFiles = append(dbcFiles, builtFile{diskPath: dbcOutPath, mpqPath: mpqInternalPath})
+					break
+				}
+			}
+		}
+
+		// Create DBC MPQ
+		if len(dbcFiles) > 0 {
+			dbcMpqName := "patch-" + patchLetter + ".MPQ"
+			dbcMpqPath := filepath.Join(clientDir, "Data", dbcMpqName)
+			os.MkdirAll(filepath.Dir(dbcMpqPath), 0755)
+			if err := createMPQ(dbcMpqPath, dbcFiles); err != nil {
+				db.Close()
+				return fmt.Errorf("create DBC MPQ: %w", err)
+			}
+			hasClient = true
+			fmt.Printf("  ✓ Client DBC: Data/%s (%d files)\n", dbcMpqName, len(dbcFiles))
+
+			// Also stage server DBC files
+			serverDbcDir := filepath.Join(releaseDir, "server", "dbc")
+			os.MkdirAll(serverDbcDir, 0755)
+			for _, bf := range dbcFiles {
+				dbcFileName := filepath.Base(strings.ReplaceAll(bf.mpqPath, "\\", "/"))
+				copyFile(bf.diskPath, filepath.Join(serverDbcDir, dbcFileName))
+			}
+			fmt.Printf("  ✓ Server DBC files (%d files)\n", len(dbcFiles))
+		}
+
+		// Step 4: Restore database — re-import baseline and re-apply all mods' migrations
+		fmt.Println("    Restoring DBC database...")
+		if _, _, err := dbc.ImportAllDBCs(db, cfg.BaselineDbcDir, true); err != nil {
+			db.Close()
+			return fmt.Errorf("restore DBC database: %w", err)
+		}
+
+		allMods := getAllMods(cfg)
+		tracker, _ := loadSQLTracker(cfg)
+		for _, mod := range allMods {
+			for _, m := range findDBCMigrations(cfg, mod) {
+				if !tracker.IsApplied(m.mod, m.filename) {
+					continue
+				}
+				sqlContent, err := os.ReadFile(m.path)
+				if err != nil {
+					fmt.Printf("    ⚠ Failed to read %s: %v\n", m.filename, err)
+					continue
+				}
+				if _, err := db.Exec(string(sqlContent)); err != nil {
+					fmt.Printf("    ⚠ Failed to re-apply %s: %v\n", m.filename, err)
+				}
+			}
+		}
+		db.Close()
+		fmt.Println("    ✓ DBC database restored")
 	}
 
-	// Copy addon MPQ
-	addonMpqName := "patch-" + locale + "-" + patchLetter + ".MPQ"
-	addonMpq := filepath.Join(cfg.ModulesBuildDir, addonMpqName)
-	if _, err := os.Stat(addonMpq); err == nil {
-		destDir := filepath.Join(clientDir, "Data", locale)
-		os.MkdirAll(destDir, 0755)
-		copyFile(addonMpq, filepath.Join(destDir, addonMpqName))
+	// Copy addon files
+	addonFiles := collectModAddons(cfg, modName)
+	if len(addonFiles) > 0 {
+		addonMpqName := "patch-" + locale + "-" + patchLetter + ".MPQ"
+		addonMpqPath := filepath.Join(clientDir, "Data", locale, addonMpqName)
+		os.MkdirAll(filepath.Dir(addonMpqPath), 0755)
+		if err := createMPQ(addonMpqPath, addonFiles); err != nil {
+			return fmt.Errorf("create addon MPQ: %w", err)
+		}
 		hasClient = true
-		fmt.Printf("  ✓ Client addons: Data/%s/%s\n", locale, addonMpqName)
+		fmt.Printf("  ✓ Client addons: Data/%s/%s (%d files)\n", locale, addonMpqName, len(addonFiles))
 	}
 
 	// Copy binary patches
@@ -112,19 +225,32 @@ func runModPublishExport(args []string) error {
 		}
 	}
 
-	// Stage server files
+	// Stage server files (DBC files may already be staged above, so preserve them)
 	serverDir := filepath.Join(releaseDir, "server")
-	os.RemoveAll(serverDir)
-
+	// Clean any leftover non-dbc server content from previous exports
+	for _, subdir := range []string{"sql", "core-patches"} {
+		os.RemoveAll(filepath.Join(serverDir, subdir))
+	}
 	hasServer := false
 
-	// Copy SQL migrations
+	// Check if server dir has any content (DBC files may have been staged above)
+	if entries, err := os.ReadDir(serverDir); err == nil && len(entries) > 0 {
+		hasServer = true
+	}
+
+	// Copy SQL migrations (exclude dbc/ — those are used to build .dbc binaries, not for the server)
 	sqlDir := filepath.Join(cfg.ModDir(modName), "sql")
-	if _, err := os.Stat(sqlDir); err == nil {
-		destDir := filepath.Join(serverDir, "sql")
-		if err := copyDirRecursive(sqlDir, destDir); err == nil {
-			hasServer = true
-			fmt.Println("  ✓ Server SQL migrations")
+	if entries, err := os.ReadDir(sqlDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() || entry.Name() == "dbc" {
+				continue
+			}
+			srcSubdir := filepath.Join(sqlDir, entry.Name())
+			destSubdir := filepath.Join(serverDir, "sql", entry.Name())
+			if err := copyDirRecursive(srcSubdir, destSubdir); err == nil {
+				hasServer = true
+				fmt.Printf("  ✓ Server SQL migrations (%s)\n", entry.Name())
+			}
 		}
 	}
 
@@ -135,22 +261,6 @@ func runModPublishExport(args []string) error {
 		if err := copyDirRecursive(corePatchDir, destDir); err == nil {
 			hasServer = true
 			fmt.Println("  ✓ Server core patches")
-		}
-	}
-
-	// Copy built DBC files for the server
-	buildDbcDir := filepath.Join(cfg.ModulesBuildDir, modName, "DBFilesClient")
-	if entries, err := os.ReadDir(buildDbcDir); err == nil {
-		for _, entry := range entries {
-			if strings.HasSuffix(strings.ToLower(entry.Name()), ".dbc") {
-				destDir := filepath.Join(serverDir, "dbc")
-				os.MkdirAll(destDir, 0755)
-				copyFile(filepath.Join(buildDbcDir, entry.Name()), filepath.Join(destDir, entry.Name()))
-				hasServer = true
-			}
-		}
-		if hasServer {
-			fmt.Println("  ✓ Server DBC files")
 		}
 	}
 
@@ -175,7 +285,7 @@ func runModPublishExport(args []string) error {
 	}
 
 	if !hasClient && !hasServer {
-		fmt.Println("No artifacts to export. Run 'mithril mod build' first.")
+		fmt.Println("No artifacts to export.")
 		return nil
 	}
 

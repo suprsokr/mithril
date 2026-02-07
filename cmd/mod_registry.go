@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	registryBaseURL = "https://raw.githubusercontent.com/suprsokr/mithril-registry/main"
+	registryBaseURL = "https://raw.githubusercontent.com/suprsokr/mithril-registry/refs/heads/main"
 	registryModsURL = registryBaseURL + "/mods"
 	// GitHub API to list files in the mods/ directory
 	registryAPIURL = "https://api.github.com/repos/suprsokr/mithril-registry/contents/mods"
@@ -222,12 +222,14 @@ func installFromGit(cfg *Config, entry RegistryEntry) error {
 func printPostInstall(entry RegistryEntry) {
 	fmt.Println()
 	fmt.Println("Next steps:")
+	hasBuild := false
 	for _, t := range entry.ModTypes {
 		switch t {
-		case "dbc":
-			fmt.Printf("  mithril mod build --mod %s       # Build DBC patches\n", entry.Name)
-		case "addon":
-			fmt.Printf("  mithril mod build --mod %s       # Build addon patches\n", entry.Name)
+		case "dbc", "addon":
+			if !hasBuild {
+				fmt.Println("  mithril mod build                # Build combined patch MPQs")
+				hasBuild = true
+			}
 		case "sql":
 			fmt.Printf("  mithril mod sql apply --mod %s   # Apply SQL migrations\n", entry.Name)
 		case "core":
@@ -272,7 +274,9 @@ func fetchRegistryIndex() ([]RegistryEntry, error) {
 			continue
 		}
 
-		entry, err := fetchJSON[RegistryEntry](f.DownloadURL)
+		// Use registryModsURL instead of f.DownloadURL to avoid CDN cache
+		url := registryModsURL + "/" + f.Name
+		entry, err := fetchJSON[RegistryEntry](url)
 		if err != nil {
 			continue
 		}
