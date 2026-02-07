@@ -19,10 +19,10 @@ A mod is a named directory under `modules/` that contains only the files it modi
 
 A mod can contain any combination of:
 
-- **DBC edits** — Game data changes (spells, items, talents, etc.) stored as CSV files
+- **DBC edits** — Game data changes (spells, items, talents, etc.) via SQL migrations
 - **Addon edits** — UI modifications (Lua, XML, TOC files) with preserved directory structure
 - **Binary patches** — Byte-level patches to `Wow.exe` described as JSON files
-- **SQL migrations** — Server-side database changes (creatures, loot, quests, spawns)
+- **SQL migrations** — Database changes with forward + rollback pairs (server databases and DBC tables)
 - **Core patches** — TrinityCore C++ code changes as git `.patch` files
 
 Mods are:
@@ -33,7 +33,7 @@ Mods are:
 
 ### Patch Chain
 
-WoW 3.3.5a loads data from MPQ archives in a specific order (the "patch chain"). Archives loaded later override files from earlier archives. Mithril assigns each mod a **patch slot** (A, B, C, ... L, then AA, AB, ...) and generates:
+WoW 3.3.5a loads data from MPQ archives in a specific order (the "patch chain"). Archives loaded later override files from earlier archives. Mithril assigns each mod a **patch slot** (A, B, C, ... L, then AA, AB, ...) at build time and generates:
 
 - **Per-mod DBC MPQs** (`patch-A.MPQ`, `patch-B.MPQ`, ...) in `modules/build/`
 - **Per-mod addon MPQs** (`patch-enUS-A.MPQ`, ...) in `modules/build/` — locale-specific
@@ -53,28 +53,30 @@ mithril-data/
 └── modules/
     ├── baseline/                   # Shared pristine reference (never edit)
     │   ├── dbc/                    # Raw .dbc binaries from MPQ chain
-    │   ├── csv/                    # Baseline CSVs (pristine exports)
     │   ├── addons/                 # Baseline addon files (lua/xml/toc)
     │   └── manifest.json           # Extraction metadata
     │
     ├── my-spell-mod/               # A named mod
-    │   ├── mod.json                # Mod metadata
-    │   ├── dbc/                    # Only the CSVs this mod changes
-    │   │   └── Spell.dbc.csv
+    │   ├── mod.json                # Mod metadata (name, description, created_at)
     │   ├── addons/                 # Only the addon files this mod changes
     │   │   └── Interface/GlueXML/GlueStrings.lua
     │   ├── binary-patches/         # Binary patches for Wow.exe
     │   │   └── allow-custom-gluexml.json
-    │   ├── sql/                    # Server-side SQL migrations
-    │   │   └── world/
-    │   │       └── 001_add_custom_npc.sql
+    │   ├── sql/                    # SQL migrations (forward + rollback pairs)
+    │   │   ├── world/              # Server database migrations
+    │   │   │   ├── 001_add_custom_npc.sql
+    │   │   │   └── 001_add_custom_npc.rollback.sql
+    │   │   └── dbc/                # DBC SQL migrations
+    │   │       ├── 001_enable_flying.sql
+    │   │       └── 001_enable_flying.rollback.sql
     │   └── core-patches/           # TrinityCore C++ patches
     │       └── 001_custom_handler.patch
     │
     ├── my-item-mod/                # Another mod
     │   ├── mod.json
-    │   └── dbc/
-    │       └── Item.dbc.csv
+    │   └── sql/dbc/                # DBC edits via SQL
+    │       ├── 001_custom_item.sql
+    │       └── 001_custom_item.rollback.sql
     │
     └── build/                      # Build artifacts
         ├── patch-A.MPQ             # Per-mod DBC MPQ (my-spell-mod)
@@ -101,6 +103,7 @@ Each mod type has its own set of commands documented in the workflow guides:
 - **[Binary Patches Workflow](binary-patches-workflow.md)** — `mithril mod patch *` — Patching the client executable
 - **[SQL Workflow](sql-workflow.md)** — `mithril mod sql *` — Server-side database migrations
 - **[Core Patches Workflow](core-patches-workflow.md)** — `mithril mod core *` — TrinityCore C++ patches
+- **[Sharing Mods](sharing-mods.md)** — `mithril mod registry *` / `mithril mod publish *` — Discover, install, and share mods
 
 ## Supported Modding Workflows
 
@@ -120,14 +123,16 @@ Binary patches are treated like any other mod content — they live in a mod's `
 
 ### SQL Migrations
 
-SQL migrations modify the TrinityCore server databases — creature stats, loot tables, quest scripts, NPC spawns, and more. Mithril provides a numbered migration system that tracks which SQL files have been applied, preventing duplicate execution. Migrations run against the MySQL instance inside the Docker container.
+SQL migrations modify the TrinityCore server databases and the DBC table data. Mithril provides a numbered migration system with forward and rollback pairs. Each `sql create` generates both files. Rollback files are never auto-applied — use `sql rollback` to undo changes.
 
 ```bash
-mithril mod sql create add_custom_npc --mod my-mod
-mithril mod sql apply --mod my-mod
+mithril mod sql create add_custom_npc --mod my-mod          # server (world) migration
+mithril mod sql create enable_flying --mod my-mod --db dbc  # DBC migration
+mithril mod sql apply --mod my-mod                          # apply pending
+mithril mod sql rollback --mod my-mod --reapply             # undo + redo (for iterating)
 ```
 
-See [SQL Workflow](sql-workflow.md) for the full guide.
+DBC SQL migrations are also automatically applied during `mod build`. See [SQL Workflow](sql-workflow.md) for the full guide.
 
 ### TrinityCore Core Patches
 
@@ -139,6 +144,10 @@ mithril init --rebuild
 ```
 
 See [Core Patches Workflow](core-patches-workflow.md) for the full guide.
+
+### Sharing & Community
+
+Mods can be shared through the **Mithril Mod Registry** — a community GitHub repository where mod authors register their mods. Users can search, browse, and install mods directly from the CLI. Installing a mod clones its git repository so you have the full source and can build locally with `mithril mod build`. See [Sharing Mods](sharing-mods.md) for the full guide.
 
 ### Future Workflows
 

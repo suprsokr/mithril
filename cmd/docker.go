@@ -169,7 +169,7 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
 fi
 
 echo "Starting MySQL..."
-mysqld --user=mysql --datadir=/var/lib/mysql &
+mysqld --user=mysql --datadir=/var/lib/mysql --bind-address=0.0.0.0 &
 
 echo "Waiting for MySQL..."
 for i in $(seq 1 60); do
@@ -237,22 +237,45 @@ if [ "$DB_EXISTS" -eq 0 ]; then
             -e 's/CREATE USER/CREATE USER IF NOT EXISTS/gi' \
             /opt/trinitycore/sql/create/create_mysql.sql \
             | mysql -u root -p"${MYSQL_ROOT_PASSWORD}"
+
+        # Create the DBC database and remote-access users for SQL-based DBC editing
+        mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "
+            CREATE DATABASE IF NOT EXISTS dbc DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+            GRANT ALL PRIVILEGES ON dbc.* TO '${MYSQL_TC_USER}'@'localhost';
+
+            CREATE USER IF NOT EXISTS '${MYSQL_TC_USER}'@'%' IDENTIFIED WITH mysql_native_password BY '${MYSQL_TC_PASSWORD}';
+            GRANT ALL PRIVILEGES ON world.*      TO '${MYSQL_TC_USER}'@'%';
+            GRANT ALL PRIVILEGES ON characters.* TO '${MYSQL_TC_USER}'@'%';
+            GRANT ALL PRIVILEGES ON auth.*       TO '${MYSQL_TC_USER}'@'%';
+            GRANT ALL PRIVILEGES ON dbc.*        TO '${MYSQL_TC_USER}'@'%';
+
+            CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}';
+            GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+
+            FLUSH PRIVILEGES;
+        "
     else
         echo "Creating databases manually..."
         mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "
             CREATE DATABASE IF NOT EXISTS world     DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
             CREATE DATABASE IF NOT EXISTS characters DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
             CREATE DATABASE IF NOT EXISTS auth       DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+            CREATE DATABASE IF NOT EXISTS dbc        DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
             CREATE USER IF NOT EXISTS '${MYSQL_TC_USER}'@'localhost' IDENTIFIED BY '${MYSQL_TC_PASSWORD}';
             GRANT ALL PRIVILEGES ON world.*      TO '${MYSQL_TC_USER}'@'localhost';
             GRANT ALL PRIVILEGES ON characters.* TO '${MYSQL_TC_USER}'@'localhost';
             GRANT ALL PRIVILEGES ON auth.*       TO '${MYSQL_TC_USER}'@'localhost';
+            GRANT ALL PRIVILEGES ON dbc.*        TO '${MYSQL_TC_USER}'@'localhost';
 
-            CREATE USER IF NOT EXISTS '${MYSQL_TC_USER}'@'%' IDENTIFIED BY '${MYSQL_TC_PASSWORD}';
+            CREATE USER IF NOT EXISTS '${MYSQL_TC_USER}'@'%' IDENTIFIED WITH mysql_native_password BY '${MYSQL_TC_PASSWORD}';
             GRANT ALL PRIVILEGES ON world.*      TO '${MYSQL_TC_USER}'@'%';
             GRANT ALL PRIVILEGES ON characters.* TO '${MYSQL_TC_USER}'@'%';
             GRANT ALL PRIVILEGES ON auth.*       TO '${MYSQL_TC_USER}'@'%';
+            GRANT ALL PRIVILEGES ON dbc.*        TO '${MYSQL_TC_USER}'@'%';
+
+            CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}';
+            GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
 
             FLUSH PRIVILEGES;
         "

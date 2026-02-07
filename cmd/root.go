@@ -28,10 +28,11 @@ Commands:
   mod status       Show which DBCs have been modified
   mod build        Build patch-M.MPQ (one mod or all)
   mod dbc list     List all baseline DBC files
-  mod dbc search   Search across DBC CSVs (regex)
+  mod dbc search   Search across DBC tables
   mod dbc inspect  Show schema and sample records for a DBC
-  mod dbc edit     Open a DBC CSV in $EDITOR (per mod)
-  mod dbc set      Programmatically edit a DBC field (per mod)
+  mod dbc import   Import baseline DBCs into MySQL for SQL editing
+  mod dbc query    Run ad-hoc SQL against the DBC database
+  mod dbc export   Export modified DBC tables back to .dbc files
   mod addon list   List all baseline addon files
   mod addon search Search addon files (regex)
   mod addon edit   Edit an addon file in a mod
@@ -44,6 +45,8 @@ Commands:
   mod sql list     List SQL migrations
   mod core apply   Apply TrinityCore core patches
   mod core list    List core patches
+  mod registry     Search, browse, and install community mods
+  mod publish      Register mods for sharing (and optionally export artifacts)
 
 Flags:
   -h, --help       Show this help message

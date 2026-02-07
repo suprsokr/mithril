@@ -44,7 +44,7 @@ func runModInit(args []string) error {
 	fmt.Printf("Client data: %s\n", clientDataDir)
 
 	// Create output directories
-	for _, d := range []string{cfg.ModulesDir, cfg.BaselineDir, cfg.BaselineDbcDir, cfg.BaselineCsvDir, cfg.BaselineAddonsDir, cfg.ModulesBuildDir} {
+	for _, d := range []string{cfg.ModulesDir, cfg.BaselineDir, cfg.BaselineDbcDir, cfg.BaselineAddonsDir, cfg.ModulesBuildDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return fmt.Errorf("create directory %s: %w", d, err)
 		}
@@ -163,21 +163,15 @@ func runModInit(args []string) error {
 		}
 
 		if metaErr == nil {
-			// Parse with known schema and export to baseline CSV
+			// Parse with known schema to capture record/field counts
 			dbcFile, err := dbc.LoadDBCFromBytes(rawData, *meta)
 			if err != nil {
 				fmt.Printf("  ⚠ Failed to parse %s (meta mismatch?): %v\n", dbcName, err)
 				mf.HasMeta = false
 			} else {
-				csvName := baseName + ".dbc.csv"
-				csvPath := filepath.Join(cfg.BaselineCsvDir, csvName)
-				if err := dbc.ExportCSV(&dbcFile, meta, csvPath); err != nil {
-					fmt.Printf("  ⚠ Failed to export CSV for %s: %v\n", dbcName, err)
-				} else {
-					mf.RecordCount = dbcFile.Header.RecordCount
-					mf.FieldCount = dbcFile.Header.FieldCount
-					withMeta++
-				}
+				mf.RecordCount = dbcFile.Header.RecordCount
+				mf.FieldCount = dbcFile.Header.FieldCount
+				withMeta++
 			}
 		}
 
@@ -261,15 +255,23 @@ func runModInit(args []string) error {
 	fmt.Printf("\n=== Extraction Complete ===\n")
 	fmt.Printf("  DBC files:          %d (%d with schema, %d raw only)\n", extracted, withMeta, withoutMeta)
 	fmt.Printf("  Addon files:        %d (lua/xml/toc)\n", addonCount)
-	fmt.Printf("  Baseline CSVs:      %s\n", cfg.BaselineCsvDir)
-	fmt.Printf("  Baseline raw DBCs:  %s\n", cfg.BaselineDbcDir)
+	fmt.Printf("  Baseline DBCs:      %s\n", cfg.BaselineDbcDir)
 	fmt.Printf("  Baseline addons:    %s\n", cfg.BaselineAddonsDir)
 	fmt.Printf("  Manifest:           %s\n", manifestPath)
+
+	// --- Phase 3: Import DBCs into MySQL for SQL-based editing ---
+	fmt.Println("\nImporting DBC data into MySQL...")
+	if err := runModDBCImport(nil); err != nil {
+		printWarning(fmt.Sprintf("DBC SQL import: %v", err))
+		printInfo("You can import later with: mithril mod dbc import")
+	}
+
 	fmt.Println()
 	fmt.Println("Next steps:")
 	fmt.Println("  mithril mod create my-mod              # Create a mod")
 	fmt.Println("  mithril mod dbc list                   # List all DBCs")
 	fmt.Println("  mithril mod dbc search \"Fireball\"       # Search across DBCs")
+	fmt.Println("  mithril mod dbc query \"SELECT ...\"      # Query DBC data with SQL")
 	fmt.Println("  mithril mod addon list                 # List all addon files")
 	fmt.Println("  mithril mod addon search \"pattern\"      # Search addon files")
 

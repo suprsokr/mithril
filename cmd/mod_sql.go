@@ -18,6 +18,8 @@ func runModSQL(subcmd string, args []string) error {
 		return runModSQLApply(args)
 	case "create":
 		return runModSQLCreate(args)
+	case "rollback":
+		return runModSQLRollback(args)
 	case "status":
 		return runModSQLStatus(args)
 	case "-h", "--help", "help":
@@ -28,29 +30,47 @@ func runModSQL(subcmd string, args []string) error {
 	}
 }
 
-const sqlUsage = `Mithril Mod SQL - Server-side database migrations
+const sqlUsage = `Mithril Mod SQL - Database migrations
 
 Usage:
   mithril mod sql <command> [args]
 
 Commands:
   create <name> --mod <mod> [--db <database>]
-                            Create a new SQL migration file
+                            Create a forward + rollback migration pair
   list [--mod <mod>]        List SQL migrations and their status
   apply [--mod <mod>]       Apply pending SQL migrations
+  rollback --mod <mod> [<migration>] [--reapply]
+                            Roll back a migration using its .rollback.sql
   status [--mod <mod>]      Show migration status
 
 Databases:
   world       Game world data (creatures, items, quests) [default]
   characters  Character data
   auth        Account and authentication data
+  dbc         DBC table data (imported from client, used by mod build)
+
+Files created by 'sql create':
+  NNN_name.sql              Forward migration (applied automatically)
+  NNN_name.rollback.sql     Rollback migration (applied manually if needed)
+
+Rollback:
+  Roll back the most recent migration for a mod:
+    mithril mod sql rollback --mod my-mod
+
+  Roll back a specific migration:
+    mithril mod sql rollback --mod my-mod 001_enable_flying
+
+  Roll back and immediately re-apply the forward migration:
+    mithril mod sql rollback --mod my-mod --reapply
+    mithril mod sql rollback --mod my-mod 001_enable_flying --reapply
 
 Examples:
   mithril mod sql create add_custom_npc --mod my-mod
-  mithril mod sql create set_xp_rate --mod my-mod --db world
+  mithril mod sql create enable_flying --mod my-mod --db dbc
   mithril mod sql list --mod my-mod
   mithril mod sql apply --mod my-mod
-  mithril mod sql apply
+  mithril mod sql rollback --mod my-mod --reapply
 `
 
 // SQLTracker records which migrations have been applied.
@@ -73,6 +93,17 @@ func (t *SQLTracker) IsApplied(mod, file string) bool {
 		}
 	}
 	return false
+}
+
+// Unapply removes a migration from the tracker.
+func (t *SQLTracker) Unapply(mod, file string) {
+	var kept []AppliedMigration
+	for _, a := range t.Applied {
+		if !(a.Mod == mod && a.File == file) {
+			kept = append(kept, a)
+		}
+	}
+	t.Applied = kept
 }
 
 func loadSQLTracker(cfg *Config) (*SQLTracker, error) {
@@ -131,7 +162,7 @@ func findMigrations(cfg *Config, modName string) []migrationInfo {
 			subDir := filepath.Join(sqlDir, db)
 			files, _ := os.ReadDir(subDir)
 			for _, f := range files {
-				if !f.IsDir() && strings.HasSuffix(f.Name(), ".sql") {
+				if !f.IsDir() && strings.HasSuffix(f.Name(), ".sql") && !strings.HasSuffix(f.Name(), ".rollback.sql") {
 					migrations = append(migrations, migrationInfo{
 						mod:      modName,
 						filename: f.Name(),
@@ -140,7 +171,7 @@ func findMigrations(cfg *Config, modName string) []migrationInfo {
 					})
 				}
 			}
-		} else if strings.HasSuffix(entry.Name(), ".sql") {
+		} else if strings.HasSuffix(entry.Name(), ".sql") && !strings.HasSuffix(entry.Name(), ".rollback.sql") {
 			// sql/*.sql — defaults to "world" database
 			migrations = append(migrations, migrationInfo{
 				mod:      modName,
@@ -209,10 +240,12 @@ func runModSQLCreate(args []string) error {
 
 	// Sanitize name for filename
 	safeName := strings.ReplaceAll(strings.ToLower(name), " ", "_")
-	filename := fmt.Sprintf("%03d_%s.sql", nextNum, safeName)
-	filePath := filepath.Join(sqlDir, filename)
+	forwardFilename := fmt.Sprintf("%03d_%s.sql", nextNum, safeName)
+	rollbackFilename := fmt.Sprintf("%03d_%s.rollback.sql", nextNum, safeName)
+	forwardPath := filepath.Join(sqlDir, forwardFilename)
+	rollbackPath := filepath.Join(sqlDir, rollbackFilename)
 
-	template := fmt.Sprintf(`-- Migration: %s
+	forwardTemplate := fmt.Sprintf(`-- Migration: %s
 -- Database: %s
 -- Mod: %s
 --
@@ -221,13 +254,26 @@ func runModSQLCreate(args []string) error {
 
 `, name, database, modName)
 
-	if err := os.WriteFile(filePath, []byte(template), 0644); err != nil {
+	rollbackTemplate := fmt.Sprintf(`-- Rollback: %s
+-- Database: %s
+-- Mod: %s
+--
+-- Undoes the changes made by %s
+--
+
+`, name, database, modName, forwardFilename)
+
+	if err := os.WriteFile(forwardPath, []byte(forwardTemplate), 0644); err != nil {
 		return fmt.Errorf("create migration file: %w", err)
 	}
+	if err := os.WriteFile(rollbackPath, []byte(rollbackTemplate), 0644); err != nil {
+		return fmt.Errorf("create rollback file: %w", err)
+	}
 
-	fmt.Printf("✓ Created migration: %s\n", filepath.Join("sql", database, filename))
-	fmt.Printf("  Edit: %s\n", filePath)
-	fmt.Printf("  Apply: mithril mod sql apply --mod %s\n", modName)
+	fmt.Printf("✓ Created migration:\n")
+	fmt.Printf("  Forward:  %s\n", forwardPath)
+	fmt.Printf("  Rollback: %s\n", rollbackPath)
+	fmt.Printf("  Apply:    mithril mod sql apply --mod %s\n", modName)
 
 	return nil
 }
@@ -271,6 +317,126 @@ func runModSQLList(args []string) error {
 	return nil
 }
 
+func runModSQLRollback(args []string) error {
+	modName, remaining := parseModFlag(args)
+	if modName == "" {
+		return fmt.Errorf("usage: mithril mod sql rollback --mod <mod_name> [<migration>] [--reapply]")
+	}
+
+	cfg := DefaultConfig()
+
+	// Parse --reapply flag and optional migration name
+	reapply := false
+	var targetMigration string
+	for _, a := range remaining {
+		if a == "--reapply" {
+			reapply = true
+		} else if !strings.HasPrefix(a, "--") {
+			targetMigration = a
+		}
+	}
+
+	tracker, err := loadSQLTracker(cfg)
+	if err != nil {
+		return fmt.Errorf("load tracker: %w", err)
+	}
+
+	// Find applied migrations for this mod (in order)
+	migrations := findMigrations(cfg, modName)
+	var appliedMigrations []migrationInfo
+	for _, m := range migrations {
+		if tracker.IsApplied(m.mod, m.filename) {
+			appliedMigrations = append(appliedMigrations, m)
+		}
+	}
+
+	if len(appliedMigrations) == 0 {
+		fmt.Printf("No applied migrations to roll back for mod '%s'.\n", modName)
+		return nil
+	}
+
+	// Determine which migration to roll back
+	var target migrationInfo
+	if targetMigration != "" {
+		// Find by name (with or without .sql extension, with or without number prefix)
+		found := false
+		for _, m := range appliedMigrations {
+			name := strings.TrimSuffix(m.filename, ".sql")
+			if m.filename == targetMigration || name == targetMigration || m.filename == targetMigration+".sql" {
+				target = m
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("migration '%s' not found or not applied for mod '%s'", targetMigration, modName)
+		}
+	} else {
+		// Default: most recent applied migration
+		target = appliedMigrations[len(appliedMigrations)-1]
+	}
+
+	// Find the rollback file
+	rollbackPath := strings.TrimSuffix(target.path, ".sql") + ".rollback.sql"
+	if _, err := os.Stat(rollbackPath); os.IsNotExist(err) {
+		return fmt.Errorf("rollback file not found: %s", rollbackPath)
+	}
+
+	// Run rollback
+	fmt.Printf("Rolling back %s/%s → %s...\n", target.mod, target.filename, target.database)
+	sqlContent, err := os.ReadFile(rollbackPath)
+	if err != nil {
+		return fmt.Errorf("read rollback file: %w", err)
+	}
+	if err := runSQL(cfg, target.database, string(sqlContent)); err != nil {
+		return fmt.Errorf("execute rollback: %w", err)
+	}
+
+	// Remove from tracker
+	tracker.Unapply(target.mod, target.filename)
+	if err := saveSQLTracker(cfg, tracker); err != nil {
+		return fmt.Errorf("save tracker: %w", err)
+	}
+
+	fmt.Printf("  ✓ Rolled back %s\n", target.filename)
+
+	// Re-apply if requested
+	if reapply {
+		fmt.Printf("\nRe-applying %s/%s → %s...\n", target.mod, target.filename, target.database)
+		sqlContent, err := os.ReadFile(target.path)
+		if err != nil {
+			return fmt.Errorf("read migration file: %w", err)
+		}
+
+		if err := runSQL(cfg, target.database, string(sqlContent)); err != nil {
+			return fmt.Errorf("re-apply migration: %w", err)
+		}
+
+		tracker.Applied = append(tracker.Applied, AppliedMigration{
+			Mod:       target.mod,
+			File:      target.filename,
+			Database:  target.database,
+			AppliedAt: timeNow(),
+		})
+		if err := saveSQLTracker(cfg, tracker); err != nil {
+			return fmt.Errorf("save tracker: %w", err)
+		}
+
+		fmt.Printf("  ✓ Re-applied %s\n", target.filename)
+	}
+
+	if target.database == "dbc" && reapply {
+		fmt.Println("\nRun 'mithril mod build' to export the updated DBC and rebuild the patch.")
+	} else if target.database == "dbc" {
+		fmt.Println("\nRun 'mithril mod build' to export the updated DBC.")
+	} else {
+		fmt.Println("\nYou may need to restart the server:")
+		fmt.Println("  mithril server restart")
+	}
+
+	return nil
+}
+
 func runModSQLStatus(args []string) error {
 	return runModSQLList(args)
 }
@@ -290,10 +456,29 @@ func runModSQLApply(args []string) error {
 		mods = getAllMods(cfg)
 	}
 
-	// Check that the server container is running
-	containerID, err := composeContainerID(cfg)
-	if err != nil || containerID == "" {
-		return fmt.Errorf("server container not running — start it with 'mithril server start'")
+	// Check which database types we need
+	hasServerMigrations := false
+	hasDBCMigrations := false
+	for _, mod := range mods {
+		for _, m := range findMigrations(cfg, mod) {
+			if tracker.IsApplied(m.mod, m.filename) {
+				continue
+			}
+			if m.database == "dbc" {
+				hasDBCMigrations = true
+			} else {
+				hasServerMigrations = true
+			}
+		}
+	}
+
+	// Server container needed for world/auth/characters
+	var containerID string
+	if hasServerMigrations {
+		containerID, err = composeContainerID(cfg)
+		if err != nil || containerID == "" {
+			return fmt.Errorf("server container not running — start it with 'mithril server start'")
+		}
 	}
 
 	applied := 0
@@ -310,15 +495,13 @@ func runModSQLApply(args []string) error {
 
 			fmt.Printf("Applying %s/%s → %s...\n", m.mod, m.filename, m.database)
 
-			// Read the SQL file
 			sqlContent, err := os.ReadFile(m.path)
 			if err != nil {
 				fmt.Printf("  ⚠ Failed to read %s: %v\n", m.filename, err)
 				continue
 			}
 
-			// Execute via docker exec
-			if err := execSQL(cfg, containerID, m.database, string(sqlContent)); err != nil {
+			if err := runSQL(cfg, m.database, string(sqlContent)); err != nil {
 				fmt.Printf("  ⚠ Failed to apply %s: %v\n", m.filename, err)
 				return fmt.Errorf("migration failed — stopping to prevent out-of-order execution")
 			}
@@ -344,18 +527,44 @@ func runModSQLApply(args []string) error {
 		fmt.Println("No pending migrations to apply.")
 	} else {
 		fmt.Printf("\n✓ Applied %d migration(s)\n", applied)
-		fmt.Println("You may need to restart the server for some changes to take effect:")
-		fmt.Println("  mithril server restart")
+		if hasServerMigrations {
+			fmt.Println("You may need to restart the server for some changes to take effect:")
+			fmt.Println("  mithril server restart")
+		}
+		if hasDBCMigrations {
+			fmt.Println("Run 'mithril mod build' to export updated DBCs.")
+		}
 	}
 
 	return nil
 }
 
+// runSQL executes a SQL string against the specified database.
+// DBC database uses the native MySQL driver; server databases use docker exec.
+func runSQL(cfg *Config, database, sqlStr string) error {
+	if database == "dbc" {
+		db, err := openDBCDB(cfg)
+		if err != nil {
+			return fmt.Errorf("connect to dbc database: %w", err)
+		}
+		defer db.Close()
+		_, err = db.Exec(sqlStr)
+		return err
+	}
+
+	// Server databases: use docker exec
+	containerID, err := composeContainerID(cfg)
+	if err != nil || containerID == "" {
+		return fmt.Errorf("server container not running")
+	}
+	return execSQL(cfg, containerID, database, sqlStr)
+}
+
 // execSQL runs a SQL string against a database inside the Docker container.
-func execSQL(cfg *Config, containerID, database, sql string) error {
+func execSQL(cfg *Config, containerID, database, sqlStr string) error {
 	cmd := exec.Command("docker", "exec", "-i", containerID,
 		"mysql", "-u", cfg.MySQLUser, "-p"+cfg.MySQLPassword, database)
-	cmd.Stdin = strings.NewReader(sql)
+	cmd.Stdin = strings.NewReader(sqlStr)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s: %s", err, string(output))

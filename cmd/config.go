@@ -32,8 +32,6 @@ type Config struct {
 	// BaselineDbcDir holds raw .dbc binaries extracted from MPQs.
 	BaselineDbcDir string
 
-	// BaselineCsvDir holds pristine CSV exports of the baseline DBCs.
-	BaselineCsvDir string
 
 	// BaselineAddonsDir holds pristine addon files (lua, xml, toc) extracted from MPQs.
 	BaselineAddonsDir string
@@ -70,7 +68,6 @@ func DefaultConfig() *Config {
 		ModulesDir:        filepath.Join(dir, "modules"),
 		BaselineDir:       filepath.Join(dir, "modules", "baseline"),
 		BaselineDbcDir:    filepath.Join(dir, "modules", "baseline", "dbc"),
-		BaselineCsvDir:    filepath.Join(dir, "modules", "baseline", "csv"),
 		BaselineAddonsDir: filepath.Join(dir, "modules", "baseline", "addons"),
 		ModulesBuildDir:   filepath.Join(dir, "modules", "build"),
 		ServerDbcDir:      filepath.Join(dir, "data", "dbc"),
@@ -87,14 +84,20 @@ func (c *Config) ModDir(modName string) string {
 	return filepath.Join(c.ModulesDir, modName)
 }
 
-// ModDbcDir returns the DBC directory for a named mod.
-func (c *Config) ModDbcDir(modName string) string {
-	return filepath.Join(c.ModulesDir, modName, "dbc")
-}
-
 // ModAddonsDir returns the addons directory for a named mod.
 func (c *Config) ModAddonsDir(modName string) string {
 	return filepath.Join(c.ModulesDir, modName, "addons")
+}
+
+// MySQLHost returns the host for connecting to MySQL.
+// Uses localhost since port 3306 is exposed from the Docker container.
+func (c *Config) MySQLHost() string {
+	return "127.0.0.1"
+}
+
+// MySQLPort returns the port for connecting to MySQL.
+func (c *Config) MySQLPort() string {
+	return "3306"
 }
 
 // EnsureDirs creates all host-side directories that get volume-mounted into

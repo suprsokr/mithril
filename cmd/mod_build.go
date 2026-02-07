@@ -3,7 +3,6 @@ package cmd
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,7 +14,7 @@ import (
 	"github.com/suprsokr/mithril/internal/patcher"
 )
 
-// builtFile tracks a DBC that was converted from CSV and is ready to package.
+// builtFile tracks a file ready for MPQ packaging.
 type builtFile struct {
 	diskPath string // path to the .dbc binary on disk
 	mpqPath  string // path inside the MPQ (e.g., "DBFilesClient\Spell.dbc")
@@ -26,7 +25,7 @@ func runModBuild(args []string) error {
 	cfg := DefaultConfig()
 
 	// Ensure baseline exists
-	if _, err := os.Stat(cfg.BaselineCsvDir); os.IsNotExist(err) {
+	if _, err := os.Stat(cfg.BaselineDbcDir); os.IsNotExist(err) {
 		return fmt.Errorf("baseline not found — run 'mithril mod init' first")
 	}
 
@@ -63,26 +62,28 @@ func runModBuild(args []string) error {
 	seenAddons := make(map[string]bool)
 
 	// Resolve patch slots for all mods up front
+	sa := loadSlotAssignments(cfg)
 	modSlots := make(map[string]string)
+	slotsBefore := len(sa.Slots)
 	for _, mod := range modsToBuild {
-		modMeta, metaErr := loadModMeta(cfg, mod)
-		if metaErr == nil && modMeta.PatchSlot == "" {
-			slot, slotErr := nextPatchSlot(cfg)
-			if slotErr == nil {
-				modMeta.PatchSlot = slot
-				data, _ := json.MarshalIndent(modMeta, "", "  ")
-				_ = os.WriteFile(filepath.Join(cfg.ModDir(mod), "mod.json"), data, 0644)
-				fmt.Printf("  Assigned patch slot %s to mod '%s'\n", slot, mod)
-			}
+		slot, err := getOrAssignSlot(cfg, sa, mod)
+		if err != nil {
+			fmt.Printf("  ⚠ Failed to assign slot for mod '%s': %v\n", mod, err)
+			continue
 		}
-		if metaErr == nil && modMeta.PatchSlot != "" {
-			modSlots[mod] = modMeta.PatchSlot
+		modSlots[mod] = slot
+	}
+	if len(sa.Slots) > slotsBefore {
+		if err := saveSlotAssignments(cfg, sa); err != nil {
+			fmt.Printf("  ⚠ Failed to save slot assignments: %v\n", err)
 		}
 	}
 
 	for _, mod := range modsToBuild {
-		// Build DBC files
-		dbcFiles, err := buildModDBCs(cfg, mod)
+		fmt.Printf("  Mod '%s':\n", mod)
+
+		// Build DBC files (SQL-based) — apply sql/dbc/ migrations and export
+		dbcFiles, err := buildModDBCsFromSQL(cfg, mod)
 		if err != nil {
 			fmt.Printf("  ⚠ Error building DBCs for mod '%s': %v\n", mod, err)
 		}
@@ -290,7 +291,7 @@ func collectModAddons(cfg *Config, mod string) []builtFile {
 		return nil
 	}
 
-	fmt.Printf("  Mod '%s': %d modified addon file(s)\n", mod, len(modifiedAddons))
+	fmt.Printf("    %d modified addon file(s)\n", len(modifiedAddons))
 
 	var files []builtFile
 	for _, relPath := range modifiedAddons {
@@ -312,59 +313,6 @@ func detectLocaleFromManifest(cfg *Config) string {
 	return "enUS"
 }
 
-// buildModDBCs converts a mod's modified CSVs to DBC binaries and returns the list of built files.
-func buildModDBCs(cfg *Config, mod string) ([]builtFile, error) {
-	modDbcDir := cfg.ModDbcDir(mod)
-	modCSVs, _ := findCSVFiles(modDbcDir)
-
-	if len(modCSVs) == 0 {
-		return nil, nil
-	}
-
-	modified := findModifiedDBCsInMod(cfg, mod)
-	if len(modified) == 0 {
-		fmt.Printf("  Mod '%s': no changes from baseline, skipping\n", mod)
-		return nil, nil
-	}
-
-	fmt.Printf("  Mod '%s': %d modified DBC(s)\n", mod, len(modified))
-
-	buildDbcDir := filepath.Join(cfg.ModulesBuildDir, mod, "DBFilesClient")
-	if err := os.MkdirAll(buildDbcDir, 0755); err != nil {
-		return nil, fmt.Errorf("create build dir: %w", err)
-	}
-
-	var files []builtFile
-	for _, baseName := range modified {
-		csvPath := filepath.Join(modDbcDir, baseName+".dbc.csv")
-
-		meta, err := dbc.GetMetaForDBC(baseName)
-		if err != nil {
-			fmt.Printf("    ⚠ No schema for %s, skipping: %v\n", baseName, err)
-			continue
-		}
-
-		dbcFile, err := dbc.ImportCSV(csvPath, meta)
-		if err != nil {
-			fmt.Printf("    ⚠ Failed to parse CSV for %s: %v\n", baseName, err)
-			continue
-		}
-
-		dbcOutPath := filepath.Join(buildDbcDir, baseName+".dbc")
-		if err := dbc.WriteDBC(dbcFile, meta, dbcOutPath); err != nil {
-			fmt.Printf("    ⚠ Failed to write DBC for %s: %v\n", baseName, err)
-			continue
-		}
-
-		dbcFileName := strings.ToUpper(string(baseName[0])) + baseName[1:] + ".dbc"
-		mpqInternalPath := "DBFilesClient\\" + dbcFileName
-
-		files = append(files, builtFile{diskPath: dbcOutPath, mpqPath: mpqInternalPath})
-		fmt.Printf("    ✓ %s (%d records)\n", baseName, dbcFile.Header.RecordCount)
-	}
-
-	return files, nil
-}
 
 // listMithrilPatches returns the names of all mithril-generated patches in the directory.
 func listMithrilPatches(clientDataDir string) []string {
@@ -496,27 +444,24 @@ func runModStatus(args []string) error {
 
 	sqlTracker, _ := loadSQLTracker(cfg)
 	coreTracker, _ := loadCoreTracker(cfg)
+	sa := loadSlotAssignments(cfg)
 
 	// Helper to print status for one mod
 	printModStatus := func(mod string) {
-		modifiedDBCs := findModifiedDBCsInMod(cfg, mod)
 		modifiedAddons := findModifiedAddons(cfg, mod)
 		sqlMigrations := findMigrations(cfg, mod)
 		corePatches := findCorePatches(cfg, mod)
 
-		if len(modifiedDBCs) == 0 && len(modifiedAddons) == 0 && len(sqlMigrations) == 0 && len(corePatches) == 0 {
+		if len(modifiedAddons) == 0 && len(sqlMigrations) == 0 && len(corePatches) == 0 {
 			fmt.Printf("  %s: no modifications\n", mod)
 			return
 		}
 
 		slot := ""
-		if meta, err := loadModMeta(cfg, mod); err == nil && meta.PatchSlot != "" {
-			slot = " (patch-" + meta.PatchSlot + ")"
+		if s := getSlot(sa, mod); s != "" {
+			slot = " (patch-" + s + ")"
 		}
 		fmt.Printf("  %s%s:\n", mod, slot)
-		for _, name := range modifiedDBCs {
-			fmt.Printf("    ✏ dbc: %s\n", name)
-		}
 		for _, name := range modifiedAddons {
 			fmt.Printf("    ✏ addon: %s\n", name)
 		}
@@ -569,26 +514,105 @@ func runModStatus(args []string) error {
 	return nil
 }
 
-// findModifiedDBCsInMod finds DBCs in a mod that differ from the baseline.
-func findModifiedDBCsInMod(cfg *Config, modName string) []string {
-	modDbcDir := cfg.ModDbcDir(modName)
-	csvFiles, err := findCSVFiles(modDbcDir)
-	if err != nil {
-		return nil
+
+// buildModDBCsFromSQL applies a mod's sql/dbc/ migrations and exports modified DBC tables.
+// Uses native MySQL driver for both migration execution and DBC export.
+// Uses CHECKSUM TABLE to detect which tables actually changed.
+func buildModDBCsFromSQL(cfg *Config, mod string) ([]builtFile, error) {
+	// Check if this mod has any dbc SQL migrations
+	dbcMigrations := findDBCMigrations(cfg, mod)
+	if len(dbcMigrations) == 0 {
+		return nil, nil
 	}
 
-	var modified []string
-	for _, csvPath := range csvFiles {
-		baseName := strings.TrimSuffix(filepath.Base(csvPath), ".dbc.csv")
-		baselinePath := filepath.Join(cfg.BaselineCsvDir, baseName+".dbc.csv")
+	// Open connection to dbc database
+	db, err := openDBCDB(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("connect to dbc database: %w", err)
+	}
+	defer db.Close()
 
-		if !filesEqual(csvPath, baselinePath) {
-			modified = append(modified, baseName)
+	// Apply pending DBC SQL migrations
+	tracker, _ := loadSQLTracker(cfg)
+	applied := 0
+	for _, m := range dbcMigrations {
+		if tracker.IsApplied(m.mod, m.filename) {
+			continue
+		}
+
+		fmt.Printf("    Applying DBC SQL: %s ...\n", m.filename)
+		sqlContent, err := os.ReadFile(m.path)
+		if err != nil {
+			return nil, fmt.Errorf("read migration %s: %w", m.filename, err)
+		}
+
+		if _, err := db.Exec(string(sqlContent)); err != nil {
+			return nil, fmt.Errorf("apply migration %s: %w", m.filename, err)
+		}
+
+		tracker.Applied = append(tracker.Applied, AppliedMigration{
+			Mod:       m.mod,
+			File:      m.filename,
+			Database:  "dbc",
+			AppliedAt: timeNow(),
+		})
+		applied++
+		fmt.Printf("    ✓ %s\n", m.filename)
+	}
+
+	if applied > 0 {
+		if err := saveSQLTracker(cfg, tracker); err != nil {
+			fmt.Printf("    ⚠ Failed to save migration tracker: %v\n", err)
 		}
 	}
 
-	sort.Strings(modified)
-	return modified
+	// Export modified DBC tables using CHECKSUM TABLE for change detection
+	metaFiles, err := dbc.GetEmbeddedMetaFiles()
+	if err != nil {
+		return nil, fmt.Errorf("get meta files: %w", err)
+	}
+
+	buildDbcDir := filepath.Join(cfg.ModulesBuildDir, mod, "DBFilesClient")
+	if err := os.MkdirAll(buildDbcDir, 0755); err != nil {
+		return nil, fmt.Errorf("create build dir: %w", err)
+	}
+
+	exported, err := dbc.ExportModifiedDBCs(db, metaFiles, cfg.BaselineDbcDir, buildDbcDir)
+	if err != nil {
+		return nil, fmt.Errorf("export modified DBCs: %w", err)
+	}
+
+	// Build the file list from exported tables
+	var files []builtFile
+	for _, tableName := range exported {
+		// Find the meta to get the original .dbc filename
+		for _, metaFile := range metaFiles {
+			meta, err := dbc.LoadEmbeddedMeta(metaFile)
+			if err != nil {
+				continue
+			}
+			if dbc.TableName(meta) == tableName {
+				dbcOutPath := filepath.Join(buildDbcDir, meta.File)
+				mpqInternalPath := "DBFilesClient\\" + meta.File
+				files = append(files, builtFile{diskPath: dbcOutPath, mpqPath: mpqInternalPath})
+				break
+			}
+		}
+	}
+
+	return files, nil
+}
+
+// findDBCMigrations returns SQL migrations specifically for the dbc database.
+func findDBCMigrations(cfg *Config, modName string) []migrationInfo {
+	allMigrations := findMigrations(cfg, modName)
+	var dbcMigrations []migrationInfo
+	for _, m := range allMigrations {
+		if m.database == "dbc" {
+			dbcMigrations = append(dbcMigrations, m)
+		}
+	}
+	return dbcMigrations
 }
 
 func filesEqual(path1, path2 string) bool {

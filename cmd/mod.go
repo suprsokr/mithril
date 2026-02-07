@@ -21,14 +21,12 @@ Commands:
   status [--mod <name>]     Show which DBCs a mod has changed
   build [--mod <name>]      Build patch-M.MPQ (one mod or all)
 
-  dbc list                  List all baseline DBC files
-  dbc search <pattern> [--mod <name>]
-                            Search across DBC CSVs (regex)
+  dbc list                  List all DBC tables
+  dbc search <pattern>      Search across DBC tables
   dbc inspect <dbc>         Show schema and sample records
-  dbc edit <dbc> --mod <name>
-                            Open a DBC CSV in $EDITOR for a mod
-  dbc set <dbc> --mod <name> --where <key>=<val> --set <col>=<val>
-                            Programmatically edit a DBC field
+  dbc import                Import baseline DBCs into MySQL
+  dbc query "<SQL>"         Run ad-hoc SQL against the DBC database
+  dbc export                Export modified DBC tables to .dbc files
 
   addon list                List all baseline addon files
   addon search <pattern> [--mod <name>]
@@ -42,9 +40,11 @@ Commands:
   patch restore             Restore Wow.exe from clean backup
 
   sql create <name> --mod <name> [--db <database>]
-                            Create a new SQL migration
+                            Create a forward + rollback migration pair
   sql list [--mod <name>]   List SQL migrations
   sql apply [--mod <name>]  Apply pending SQL migrations
+  sql rollback --mod <name> [<migration>] [--reapply]
+                            Roll back a migration
   sql status [--mod <name>] Show migration status
 
   core list [--mod <name>]
@@ -54,10 +54,21 @@ Commands:
   core status [--mod <name>]
                             Show core patch status
 
+  registry list             List all mods in the community registry
+  registry search <query>   Search mods by name, tags, or description
+  registry info <name>      Show detailed info about a registry mod
+  registry install <name>   Clone a mod's source repo and set it up locally
+
+  publish register --mod <name> --repo <url>
+                            Generate a registry JSON for your mod
+  publish export --mod <name>
+                            Export pre-built client.zip/server.zip (optional)
+
 Examples:
   mithril mod init
   mithril mod create my-spell-mod
-  mithril mod dbc set Spell --mod my-spell-mod --where id=133 --set spell_name_enUS="Mithril Bolt"
+  mithril mod dbc query "SELECT id, spell_name_enus FROM spell WHERE id = 133"
+  mithril mod sql create rename_spell --mod my-spell-mod --db dbc
   mithril mod build --mod my-spell-mod
   mithril mod addon list
   mithril mod addon search "SpellBook"
@@ -65,16 +76,71 @@ Examples:
   mithril mod sql create add_custom_npc --mod my-mod
   mithril mod sql apply --mod my-mod
   mithril mod core apply --mod my-mod
+  mithril mod registry search "flying"
+  mithril mod registry install fly-in-azeroth
+  mithril mod publish register --mod my-mod --repo https://github.com/user/my-mod
   mithril mod build
   mithril mod list
 `
 
 // ModMeta is the metadata stored in each mod's mod.json.
+// This file is meant to be committed to version control and shared.
+// Local-only state (like patch slot assignments) is stored separately.
 type ModMeta struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
-	PatchSlot   string `json:"patch_slot"`
 	CreatedAt   string `json:"created_at"`
+}
+
+// SlotAssignments maps mod names to their assigned patch slots.
+// Stored in modules/slot_assignments.json — local only, not committed to mod repos.
+type SlotAssignments struct {
+	Slots map[string]string `json:"slots"`
+}
+
+// loadSlotAssignments loads the slot assignments file.
+func loadSlotAssignments(cfg *Config) *SlotAssignments {
+	path := filepath.Join(cfg.ModulesDir, "slot_assignments.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return &SlotAssignments{Slots: make(map[string]string)}
+	}
+	var sa SlotAssignments
+	if err := json.Unmarshal(data, &sa); err != nil {
+		return &SlotAssignments{Slots: make(map[string]string)}
+	}
+	if sa.Slots == nil {
+		sa.Slots = make(map[string]string)
+	}
+	return &sa
+}
+
+// saveSlotAssignments writes the slot assignments file.
+func saveSlotAssignments(cfg *Config, sa *SlotAssignments) error {
+	path := filepath.Join(cfg.ModulesDir, "slot_assignments.json")
+	data, err := json.MarshalIndent(sa, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+// getOrAssignSlot returns the patch slot for a mod, assigning one if needed.
+func getOrAssignSlot(cfg *Config, sa *SlotAssignments, modName string) (string, error) {
+	if slot, ok := sa.Slots[modName]; ok && slot != "" {
+		return slot, nil
+	}
+	slot, err := nextFreeSlot(sa)
+	if err != nil {
+		return "", err
+	}
+	sa.Slots[modName] = slot
+	return slot, nil
+}
+
+// getSlot returns the patch slot for a mod, or empty string if not assigned.
+func getSlot(sa *SlotAssignments, modName string) string {
+	return sa.Slots[modName]
 }
 
 func runMod(args []string) error {
@@ -97,7 +163,7 @@ func runMod(args []string) error {
 	case "dbc":
 		if len(args) < 2 {
 			fmt.Print(modUsage)
-			return fmt.Errorf("mod dbc requires a subcommand: list, search, inspect, edit, set")
+			return fmt.Errorf("mod dbc requires a subcommand: list, search, inspect, import, query, export")
 		}
 		return runModDBC(args[1], args[2:])
 	case "addon":
@@ -124,6 +190,14 @@ func runMod(args []string) error {
 			return fmt.Errorf("mod core requires a subcommand: list, apply, status")
 		}
 		return runModCore(args[1], args[2:])
+	case "registry":
+		if len(args) < 2 {
+			fmt.Print(modUsage)
+			return fmt.Errorf("mod registry requires a subcommand: list, search, info, install")
+		}
+		return runModRegistry(args[1], args[2:])
+	case "publish":
+		return runModPublish(args[1:])
 	case "-h", "--help", "help":
 		fmt.Print(modUsage)
 		return nil
@@ -150,7 +224,7 @@ func runModCreate(args []string) error {
 	}
 
 	// Check baseline exists
-	if _, err := os.Stat(cfg.BaselineCsvDir); os.IsNotExist(err) {
+	if _, err := os.Stat(cfg.BaselineDbcDir); os.IsNotExist(err) {
 		return fmt.Errorf("baseline not found — run 'mithril mod init' first")
 	}
 
@@ -159,21 +233,14 @@ func runModCreate(args []string) error {
 		return fmt.Errorf("mod already exists: %s", modName)
 	}
 
-	// Create mod directory and dbc subdirectory
-	if err := os.MkdirAll(cfg.ModDbcDir(modName), 0755); err != nil {
+	// Create mod directory
+	if err := os.MkdirAll(modDir, 0755); err != nil {
 		return fmt.Errorf("create mod dir: %w", err)
 	}
 
-	// Assign a patch slot (A, B, C, ... L, AA, AB, ...)
-	slot, err := nextPatchSlot(cfg)
-	if err != nil {
-		return fmt.Errorf("assign patch slot: %w", err)
-	}
-
-	// Write mod.json
+	// Write mod.json (no patch slot — assigned at build time)
 	meta := ModMeta{
 		Name:      modName,
-		PatchSlot: slot,
 		CreatedAt: timeNow(),
 	}
 	data, _ := json.MarshalIndent(meta, "", "  ")
@@ -182,12 +249,11 @@ func runModCreate(args []string) error {
 	}
 
 	fmt.Printf("✓ Created mod: %s\n", modName)
-	fmt.Printf("  Patch slot: patch-%s.MPQ\n", slot)
 	fmt.Printf("  Directory:  %s\n", modDir)
 	fmt.Println()
 	fmt.Println("Next steps:")
-	fmt.Printf("  mithril mod dbc edit Spell --mod %s\n", modName)
-	fmt.Printf("  mithril mod dbc set Spell --mod %s --where id=133 --set spell_name_enUS=\"My Spell\"\n", modName)
+	fmt.Printf("  mithril mod dbc query \"SELECT id, spell_name_enus FROM spell LIMIT 5\"\n")
+	fmt.Printf("  mithril mod sql create my_change --mod %s --db dbc\n", modName)
 	fmt.Printf("  mithril mod build --mod %s\n", modName)
 
 	return nil
@@ -206,14 +272,10 @@ func runModList(args []string) error {
 	}
 
 	// Check baseline
-	if _, err := os.Stat(cfg.BaselineCsvDir); os.IsNotExist(err) {
+	if _, err := os.Stat(cfg.BaselineDbcDir); os.IsNotExist(err) {
 		fmt.Println("Baseline not extracted. Run 'mithril mod init' first.")
 		return nil
 	}
-
-	// Count baseline CSVs
-	baselineCSVs, _ := findCSVFiles(cfg.BaselineCsvDir)
-	fmt.Printf("Baseline: %d DBC files with known schemas\n\n", len(baselineCSVs))
 
 	// List mods
 	mods := listMods(cfg, entries)
@@ -222,16 +284,17 @@ func runModList(args []string) error {
 		return nil
 	}
 
-	fmt.Printf("%-25s %-12s %s\n", "Mod", "Patch Slot", "Modified DBCs")
+	sa := loadSlotAssignments(cfg)
+
+	fmt.Printf("%-25s %-12s %s\n", "Mod", "Patch Slot", "SQL Migrations")
 	fmt.Println(strings.Repeat("-", 55))
 	for _, mod := range mods {
-		modDbcDir := cfg.ModDbcDir(mod)
-		csvs, _ := findCSVFiles(modDbcDir)
-		slot := "?"
-		if meta, err := loadModMeta(cfg, mod); err == nil && meta.PatchSlot != "" {
-			slot = "patch-" + meta.PatchSlot
+		slot := "(unassigned)"
+		if s := getSlot(sa, mod); s != "" {
+			slot = "patch-" + s
 		}
-		fmt.Printf("%-25s %-12s %d\n", mod, slot, len(csvs))
+		migrations := findMigrations(cfg, mod)
+		fmt.Printf("%-25s %-12s %d\n", mod, slot, len(migrations))
 	}
 
 	return nil
@@ -317,15 +380,11 @@ func loadModMeta(cfg *Config, modName string) (*ModMeta, error) {
 // M is reserved for the combined patch.
 var reservedSlots = map[string]bool{"M": true}
 
-func nextPatchSlot(cfg *Config) (string, error) {
+func nextFreeSlot(sa *SlotAssignments) (string, error) {
 	// Collect all slots already in use
 	used := make(map[string]bool)
-	mods := getAllMods(cfg)
-	for _, mod := range mods {
-		meta, err := loadModMeta(cfg, mod)
-		if err == nil && meta.PatchSlot != "" {
-			used[meta.PatchSlot] = true
-		}
+	for _, slot := range sa.Slots {
+		used[slot] = true
 	}
 
 	// Generate slots in order: A-L, then AA-AL, BA-BL, etc.

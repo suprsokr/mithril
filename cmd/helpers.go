@@ -196,3 +196,4 @@ func printWarning(msg string) {
 func printInfo(msg string) {
 	fmt.Printf("\033[1;34mℹ\033[0m %s\n", msg)
 }
+
