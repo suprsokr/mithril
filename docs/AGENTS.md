@@ -10,6 +10,7 @@ This document orients AI agents working in this codebase. Read it first, then fo
 - **Mod** — A named directory under `mithril-data/modules/<mod-name>/` containing only the files the mod changes. Mods are independent, composable, and minimal.
 - **Patch chain** — WoW loads MPQs in order; later archives override earlier ones. Letter-based patches sort after `patch-3.MPQ`, so mod changes always win.
 - **Build** — `mithril mod build` always builds all mods together into combined MPQ archives (`patch-M.MPQ`, `patch-enUS-M.MPQ`) for the client and flat DBC files for the server. The patch letter (default "M") is configurable via `mithril-data/mithril.json`.
+- **Build order** — Mods are built in the order listed in `modules/baseline/manifest.json` under `build_order`. Later mods override earlier ones for conflicting files. Mods are automatically appended to `build_order` when created or installed. Users can reorder by editing the manifest. Mods on disk but not in the list are appended alphabetically.
 
 ## Lifecycle: From Zero to Running Mod
 

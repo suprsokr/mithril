@@ -214,6 +214,11 @@ func installFromGit(cfg *Config, entry RegistryEntry) error {
 		os.WriteFile(modJsonPath, data, 0644)
 	}
 
+	// Add to build order in manifest
+	if err := addModToBuildOrder(cfg, entry.Name); err != nil {
+		fmt.Printf("  ⚠ Failed to update build order: %v\n", err)
+	}
+
 	fmt.Printf("\n✓ Installed %s to %s\n", entry.Name, modDir)
 	printPostInstall(entry)
 	return nil

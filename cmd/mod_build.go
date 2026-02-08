@@ -355,7 +355,7 @@ func runModStatus(args []string) error {
 	fmt.Println("=== Mithril Mod Status ===")
 	fmt.Printf("  Baseline extracted: %s\n", manifest.ExtractedAt)
 	fmt.Printf("  Locale:             %s\n", manifest.Locale)
-	fmt.Printf("  Total baseline DBCs: %d\n", len(manifest.Files))
+	fmt.Printf("  Total baseline DBCs: %d\n", countBaselineDBCs(cfg.BaselineDbcDir))
 	fmt.Println()
 
 	sqlTracker, _ := loadSQLTracker(cfg)

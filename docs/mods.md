@@ -46,6 +46,22 @@ The patch letter (default "M") can be customized in `mithril-data/mithril.json`:
 {"patch_letter": "Z"}
 ```
 
+## Build Order
+
+When multiple mods are built together, `mithril mod build` processes them in a defined order. Mods processed later override files from earlier mods when they modify the same file (DBC or addon).
+
+The build order is stored in `modules/baseline/manifest.json` under the `build_order` key:
+
+```json
+{
+  "build_order": ["base-fixes", "my-spell-mod", "my-item-mod"]
+}
+```
+
+**Automatic ordering:** When you create a mod (`mithril mod create`) or install one (`mithril mod registry install`), it is automatically appended to `build_order`. This means mods are built in the order they were added — later mods take priority.
+
+**Manual override:** You can reorder entries in `modules/baseline/manifest.json` to change priority. Mods listed later override earlier ones for conflicting files.
+
 ## Directory Structure
 
 ```
@@ -59,14 +75,12 @@ mithril-data/
     ├── baseline/                   # Shared pristine reference (never edit)
     │   ├── dbc/                    # Raw .dbc binaries from MPQ chain
     │   ├── addons/                 # Baseline addon files (lua/xml/toc)
-    │   └── manifest.json           # Extraction metadata
+    │   └── manifest.json           # Extraction metadata + build_order
     │
     ├── my-spell-mod/               # A named mod
     │   ├── mod.json                # Mod metadata (name, description, created_at)
     │   ├── addons/                 # Only the addon files this mod changes
-    │   │   └── Interface/GlueXML/GlueStrings.lua
     │   ├── binary-patches/         # Binary patches for Wow.exe
-    │   │   └── allow-custom-gluexml.json
     │   ├── sql/                    # SQL migrations (forward + rollback pairs)
     │   │   ├── world/              # Server database migrations
     │   │   │   ├── 001_add_custom_npc.sql
@@ -78,10 +92,6 @@ mithril-data/
     │       └── 001_custom_handler.patch
     │
     ├── my-item-mod/                # Another mod
-    │   ├── mod.json
-    │   └── sql/dbc/                # DBC edits via SQL
-    │       ├── 001_custom_item.sql
-    │       └── 001_custom_item.rollback.sql
     │
     └── build/                      # Build artifacts
         ├── patch-M.MPQ             # Combined DBC MPQ (all mods)
@@ -150,12 +160,3 @@ See [Core Patches Workflow](core-patches-workflow.md) for the full guide.
 ### Sharing & Community
 
 Mods can be shared through the **Mithril Mod Registry** — a community GitHub repository where mod authors register their mods. Users can search, browse, and install mods directly from the CLI. Installing a mod clones its git repository so you have the full source and can build locally with `mithril mod build`. See [Sharing Mods](sharing-mods.md) for the full guide.
-
-### Future Workflows
-
-The modding framework is designed to support additional workflows as they're implemented:
-
-- **Asset replacement** — Textures, models, and other art assets
-- **Map editing** — ADT/WDT terrain modifications
-
-Each workflow will follow the same pattern: mods are isolated directories, changes are tracked against a baseline, and output is packaged for the client or server as appropriate.

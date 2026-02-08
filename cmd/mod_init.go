@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,22 +12,19 @@ import (
 	"github.com/suprsokr/mithril/internal/dbc"
 )
 
-// Manifest tracks the state of the baseline DBC extraction.
+// Manifest tracks the state of the baseline DBC extraction and mod build settings.
 type Manifest struct {
-	ExtractedAt string                   `json:"extracted_at"`
-	ClientData  string                   `json:"client_data"`
-	Locale      string                   `json:"locale"`
-	MPQChain    []string                 `json:"mpq_chain"`
-	Files       map[string]*ManifestFile `json:"files"`
-}
-
-// ManifestFile tracks an individual DBC file in the baseline.
-type ManifestFile struct {
-	SourceMPQ   string `json:"source_mpq"`
-	OriginalMD5 string `json:"original_md5"`
-	HasMeta     bool   `json:"has_meta"`
-	RecordCount uint32 `json:"record_count"`
-	FieldCount  uint32 `json:"field_count"`
+	ExtractedAt string   `json:"extracted_at"`
+	ClientData  string   `json:"client_data"`
+	Locale      string   `json:"locale"`
+	MPQChain    []string `json:"mpq_chain"`
+	// BuildOrder controls which mods are built and in what order.
+	// Mods listed first have lowest priority — later mods override earlier ones
+	// when they modify the same file. Mods on disk but not listed here are
+	// appended alphabetically after the explicit list.
+	// Automatically populated when mods are created or installed.
+	// Users can reorder entries in modules/baseline/manifest.json to change priority.
+	BuildOrder []string `json:"build_order"`
 }
 
 func runModInit(args []string) error {
@@ -112,13 +107,19 @@ func runModInit(args []string) error {
 
 	fmt.Printf("\nFound %d unique DBC files across all archives\n", len(dbcFiles))
 
+	// Preserve existing build_order if re-initializing
+	var existingBuildOrder []string
+	if oldManifest, err := loadManifest(cfg.BaselineDir); err == nil {
+		existingBuildOrder = oldManifest.BuildOrder
+	}
+
 	// Extract to baseline
 	manifest := &Manifest{
 		ExtractedAt: timeNow(),
 		ClientData:  clientDataDir,
 		Locale:      locale,
 		MPQChain:    mpqFiles,
-		Files:       make(map[string]*ManifestFile),
+		BuildOrder:  existingBuildOrder,
 	}
 
 	extracted := 0
@@ -143,50 +144,33 @@ func runModInit(args []string) error {
 			continue
 		}
 
-		// Compute MD5 of raw file
+		// Read to validate and count meta coverage
 		rawData, err := os.ReadFile(rawPath)
 		if err != nil {
 			fmt.Printf("  ⚠ Failed to read %s: %v\n", dbcName, err)
 			continue
 		}
-		hash := md5.Sum(rawData)
-		md5Hex := hex.EncodeToString(hash[:])
 
 		// Try to find meta for this DBC
 		baseName := strings.TrimSuffix(dbcName, filepath.Ext(dbcName))
 		meta, metaErr := dbc.GetMetaForDBC(baseName)
 
-		mf := &ManifestFile{
-			SourceMPQ:   filepath.Base(archive.path),
-			OriginalMD5: md5Hex,
-			HasMeta:     metaErr == nil,
-		}
-
-		if metaErr == nil {
-			// Parse with known schema to capture record/field counts
-			dbcFile, err := dbc.LoadDBCFromBytes(rawData, *meta)
+		hasMeta := metaErr == nil
+		if hasMeta {
+			// Parse with known schema to validate
+			_, err := dbc.LoadDBCFromBytes(rawData, *meta)
 			if err != nil {
 				fmt.Printf("  ⚠ Failed to parse %s (meta mismatch?): %v\n", dbcName, err)
-				mf.HasMeta = false
+				hasMeta = false
 			} else {
-				mf.RecordCount = dbcFile.Header.RecordCount
-				mf.FieldCount = dbcFile.Header.FieldCount
 				withMeta++
 			}
 		}
 
-		if !mf.HasMeta {
-			if len(rawData) >= 20 {
-				header, err := dbc.ParseHeader(rawData[:20])
-				if err == nil {
-					mf.RecordCount = header.RecordCount
-					mf.FieldCount = header.FieldCount
-				}
-			}
+		if !hasMeta {
 			withoutMeta++
 		}
 
-		manifest.Files[dbcName] = mf
 		extracted++
 	}
 
@@ -354,4 +338,47 @@ func loadManifest(baselineDir string) (*Manifest, error) {
 		return nil, err
 	}
 	return &m, nil
+}
+
+// saveManifest writes the manifest back to disk.
+func saveManifest(baselineDir string, manifest *Manifest) error {
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal manifest: %w", err)
+	}
+	return os.WriteFile(filepath.Join(baselineDir, "manifest.json"), data, 0644)
+}
+
+// addModToBuildOrder appends a mod to the manifest's build_order if not already present.
+func addModToBuildOrder(cfg *Config, modName string) error {
+	manifest, err := loadManifest(cfg.BaselineDir)
+	if err != nil {
+		// No manifest yet (baseline not initialized) — silently skip.
+		return nil
+	}
+
+	// Check if already in the list
+	for _, name := range manifest.BuildOrder {
+		if name == modName {
+			return nil
+		}
+	}
+
+	manifest.BuildOrder = append(manifest.BuildOrder, modName)
+	return saveManifest(cfg.BaselineDir, manifest)
+}
+
+// countBaselineDBCs counts .dbc files in the baseline directory.
+func countBaselineDBCs(baselineDbcDir string) int {
+	entries, err := os.ReadDir(baselineDbcDir)
+	if err != nil {
+		return 0
+	}
+	count := 0
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(strings.ToLower(e.Name()), ".dbc") {
+			count++
+		}
+	}
+	return count
 }

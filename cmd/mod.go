@@ -198,6 +198,11 @@ func runModCreate(args []string) error {
 		return fmt.Errorf("write mod.json: %w", err)
 	}
 
+	// Add to build order in manifest
+	if err := addModToBuildOrder(cfg, modName); err != nil {
+		fmt.Printf("  ⚠ Failed to update build order: %v\n", err)
+	}
+
 	fmt.Printf("✓ Created mod: %s\n", modName)
 	fmt.Printf("  Directory:  %s\n", modDir)
 	fmt.Println()
@@ -263,13 +268,46 @@ func listMods(cfg *Config, entries []os.DirEntry) []string {
 	return mods
 }
 
-// getAllMods returns all mod names.
+// getAllMods returns all mod names in build order.
+// If the manifest has a build_order, mods are returned in that order first,
+// followed by any mods on disk not in the list (alphabetically).
+// This ensures explicit ordering is respected while remaining backward-compatible.
 func getAllMods(cfg *Config) []string {
 	entries, err := os.ReadDir(cfg.ModulesDir)
 	if err != nil {
 		return nil
 	}
-	return listMods(cfg, entries)
+	diskMods := listMods(cfg, entries)
+
+	manifest, err := loadManifest(cfg.BaselineDir)
+	if err != nil || len(manifest.BuildOrder) == 0 {
+		return diskMods
+	}
+
+	// Build a set of mods that actually exist on disk
+	diskSet := make(map[string]bool, len(diskMods))
+	for _, m := range diskMods {
+		diskSet[m] = true
+	}
+
+	// Start with build_order entries that exist on disk
+	seen := make(map[string]bool)
+	var ordered []string
+	for _, name := range manifest.BuildOrder {
+		if diskSet[name] && !seen[name] {
+			ordered = append(ordered, name)
+			seen[name] = true
+		}
+	}
+
+	// Append any disk mods not in build_order (alphabetically, since diskMods is from ReadDir)
+	for _, name := range diskMods {
+		if !seen[name] {
+			ordered = append(ordered, name)
+		}
+	}
+
+	return ordered
 }
 
 // parseModFlag extracts --mod <name> from args, returning the mod name and remaining args.
