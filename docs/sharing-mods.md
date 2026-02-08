@@ -68,7 +68,7 @@ my-mod/
 ├── addons/
 │   └── Interface/FrameXML/SpellBookFrame.lua
 ├── binary-patches/
-│   └── allow-custom-gluexml.json
+│   └── my-custom-patch.json
 ├── sql/
 │   └── world/
 │       └── 001_add_custom_npc.sql

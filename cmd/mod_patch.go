@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/suprsokr/mithril/internal/patcher"
@@ -34,19 +33,19 @@ Usage:
   mithril mod patch <command> [args]
 
 Commands:
-  list                      List available built-in patches
-  apply <name|path> [...]   Apply one or more patches (built-in name or .json path)
+  list                      List available patches from installed mods
+  apply --mod <name>        Apply all patches from a mod's binary-patches/ directory
+  apply <path> [...]        Apply one or more specific patch JSON files
   status                    Show which patches have been applied
   restore                   Restore Wow.exe from clean backup
 
-Built-in patches:
-  allow-custom-gluexml      Disable interface file integrity check (required for GlueXML/FrameXML mods)
-  large-address-aware       Allow client to use more than 2GB RAM
+Patches are distributed as mods with JSON files in their binary-patches/ directories.
+Use 'mithril mod patch list' to see all available patches from your installed mods.
 
 Examples:
   mithril mod patch list
-  mithril mod patch apply allow-custom-gluexml
-  mithril mod patch apply my-mod/binary-patches/custom.json
+  mithril mod patch apply --mod allow-custom-gluexml
+  mithril mod patch apply my-mod/binary-patches/my-patch.json
   mithril mod patch status
   mithril mod patch restore
 `
@@ -57,20 +56,9 @@ func runModPatchList(args []string) error {
 	fmt.Println("=== Available Binary Patches ===")
 	fmt.Println()
 
-	// Built-in patches
-	fmt.Println("Built-in:")
-	var names []string
-	for name := range patcher.BuiltinPatches {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		p := patcher.BuiltinPatches[name]
-		fmt.Printf("  %-30s %s\n", name, p.Description)
-	}
-
 	// Per-mod patches
 	mods := getAllMods(cfg)
+	found := false
 	for _, mod := range mods {
 		patchDir := filepath.Join(cfg.ModDir(mod), "binary-patches")
 		entries, err := os.ReadDir(patchDir)
@@ -83,16 +71,26 @@ func runModPatchList(args []string) error {
 				continue
 			}
 			if first {
-				fmt.Printf("\nMod '%s':\n", mod)
+				fmt.Printf("Mod '%s':\n", mod)
 				first = false
+				found = true
 			}
 			pf, err := patcher.LoadPatchFile(filepath.Join(patchDir, entry.Name()))
 			desc := ""
 			if err == nil && pf.Description != "" {
 				desc = pf.Description
 			}
-			fmt.Printf("  %-30s %s\n", entry.Name(), desc)
+			applyPath := mod + "/binary-patches/" + entry.Name()
+			fmt.Printf("  %-50s %s\n", applyPath, desc)
 		}
+		if !first {
+			fmt.Println()
+		}
+	}
+
+	if !found {
+		fmt.Println("No patches found. Binary patches are distributed as mods.")
+		fmt.Println("Install a mod that includes a binary-patches/ directory to see patches here.")
 	}
 
 	return nil
@@ -100,10 +98,30 @@ func runModPatchList(args []string) error {
 
 func runModPatchApply(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: mithril mod patch apply <name|path> [...]")
+		return fmt.Errorf("usage: mithril mod patch apply --mod <name> | <path> [...]")
 	}
 
 	cfg := DefaultConfig()
+
+	// If --mod is specified, expand to all JSON files in that mod's binary-patches/ dir
+	modName, remaining := parseModFlag(args)
+	if modName != "" {
+		patchDir := filepath.Join(cfg.ModDir(modName), "binary-patches")
+		entries, err := os.ReadDir(patchDir)
+		if err != nil {
+			return fmt.Errorf("no binary-patches/ directory found in mod %s", modName)
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+				remaining = append(remaining, modName+"/binary-patches/"+entry.Name())
+			}
+		}
+		if len(remaining) == 0 {
+			return fmt.Errorf("no .json patch files found in %s", patchDir)
+		}
+		args = remaining
+	}
+
 	wowExePath := filepath.Join(cfg.ClientDir, "Wow.exe")
 
 	if _, err := os.Stat(wowExePath); os.IsNotExist(err) {
@@ -249,40 +267,36 @@ func runModPatchRestore(args []string) error {
 }
 
 // resolvePatch finds a patch by name (used for re-applying tracked patches).
+// Name format: "modname/binary-patches/filename.json"
 func resolvePatch(cfg *Config, name string) *patcher.PatchFile {
-	// Check built-in
-	if pf, ok := patcher.BuiltinPatches[name]; ok {
-		return pf
-	}
-
-	// Check mod patches (name format: "modname/filename.json")
 	parts := strings.SplitN(name, "/", 2)
 	if len(parts) == 2 {
-		path := filepath.Join(cfg.ModDir(parts[0]), "binary-patches", parts[1])
+		path := filepath.Join(cfg.ModDir(parts[0]), parts[1])
 		pf, err := patcher.LoadPatchFile(path)
 		if err == nil {
 			return pf
 		}
 	}
-
 	return nil
 }
 
 // resolveUserPatch resolves a user-provided patch argument to a name and PatchFile.
 func resolveUserPatch(cfg *Config, arg string) (string, *patcher.PatchFile, error) {
-	// Check built-in names first
-	if pf, ok := patcher.BuiltinPatches[arg]; ok {
-		return arg, pf, nil
-	}
-
-	// Check if it's a file path
+	// Check if it's a file path (relative to modules dir)
 	if strings.HasSuffix(arg, ".json") {
+		// Try as a relative path from modules dir first
+		modPath := filepath.Join(cfg.ModulesDir, arg)
+		if pf, err := patcher.LoadPatchFile(modPath); err == nil {
+			return filepath.ToSlash(arg), pf, nil
+		}
+
+		// Try as an absolute or workspace-relative path
 		pf, err := patcher.LoadPatchFile(arg)
 		if err != nil {
 			return "", nil, fmt.Errorf("load patch file %s: %w", arg, err)
 		}
 		name := arg
-		// If it's inside a mod, use "modname/filename" as the name
+		// If it's inside a mod, use relative path as the name
 		rel, relErr := filepath.Rel(cfg.ModulesDir, arg)
 		if relErr == nil {
 			name = filepath.ToSlash(rel)
@@ -290,5 +304,5 @@ func resolveUserPatch(cfg *Config, arg string) (string, *patcher.PatchFile, erro
 		return name, pf, nil
 	}
 
-	return "", nil, fmt.Errorf("unknown patch: %s (not a built-in name or .json file)", arg)
+	return "", nil, fmt.Errorf("unknown patch: %s (use a .json file path, e.g., %s/binary-patches/%s.json)", arg, arg, arg)
 }

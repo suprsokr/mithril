@@ -11,7 +11,6 @@ import (
 
 	"github.com/suprsokr/go-mpq"
 	"github.com/suprsokr/mithril/internal/dbc"
-	"github.com/suprsokr/mithril/internal/patcher"
 )
 
 // builtFile tracks a file ready for MPQ packaging.
@@ -173,28 +172,6 @@ func runModBuild(args []string) error {
 		fmt.Println()
 		fmt.Println("⚠ Server DBC files were updated. Restart the server for changes to take effect:")
 		fmt.Println("  mithril server restart")
-	}
-
-	// Check if addon files include GlueXML/FrameXML and warn about binary patch
-	if len(allAddonFiles) > 0 {
-		hasGlueOrFrame := false
-		for _, bf := range allAddonFiles {
-			lower := strings.ToLower(bf.mpqPath)
-			if strings.Contains(lower, "gluexml") || strings.Contains(lower, "framexml") {
-				hasGlueOrFrame = true
-				break
-			}
-		}
-		if hasGlueOrFrame {
-			trackerPath := filepath.Join(cfg.ModulesDir, "binary_patches_applied.json")
-			tracker, _ := patcher.LoadTracker(trackerPath)
-			if !tracker.IsApplied("allow-custom-gluexml") {
-				fmt.Println()
-				fmt.Println("⚠ Your mod includes GlueXML/FrameXML changes. The client will crash")
-				fmt.Println("  with 'corrupt interface files' unless you apply the binary patch:")
-				fmt.Println("  mithril mod patch apply allow-custom-gluexml")
-			}
-		}
 	}
 
 	return nil

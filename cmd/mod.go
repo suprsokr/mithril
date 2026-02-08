@@ -205,11 +205,6 @@ func runModCreate(args []string) error {
 
 	fmt.Printf("✓ Created mod: %s\n", modName)
 	fmt.Printf("  Directory:  %s\n", modDir)
-	fmt.Println()
-	fmt.Println("Next steps:")
-	fmt.Printf("  mithril mod dbc query \"SELECT id, spell_name_enus FROM spell LIMIT 5\"\n")
-	fmt.Printf("  mithril mod sql create my_change --mod %s --db dbc\n", modName)
-	fmt.Println("  mithril mod build")
 
 	return nil
 }

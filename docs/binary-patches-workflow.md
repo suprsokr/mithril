@@ -1,15 +1,15 @@
 # Binary Patches
 
-Binary patches modify the WoW client executable (`Wow.exe`) at specific byte offsets to change client behavior. Mithril includes built-in patches for common needs and supports custom patches defined as JSON files.
+Binary patches modify the WoW client executable (`Wow.exe`) at specific byte offsets to change client behavior. Patches are distributed as mods with JSON files in their `binary-patches/` directories.
 
 ## Quick Start
 
 ```bash
-# List available patches
+# List available patches from installed mods
 mithril mod patch list
 
-# Apply a built-in patch
-mithril mod patch apply allow-custom-gluexml
+# Apply a patch from a mod
+mithril mod patch apply my-mod/binary-patches/my-patch.json
 
 # Check what's applied
 mithril mod patch status
@@ -18,12 +18,7 @@ mithril mod patch status
 mithril mod patch restore
 ```
 
-## Built-in Patches
-
-| Patch | Description |
-|---|---|
-| `allow-custom-gluexml` | **Required for addon modding.** Disables the client's GlueXML/FrameXML integrity check, preventing the "corrupt interface files" crash when modifying built-in UI files. |
-| `large-address-aware` | Enables the Large Address Aware flag, allowing the client to use more than 2GB of RAM on 64-bit systems. |
+Patches are distributed as mods with JSON files in their `binary-patches/` directories. Use `mithril mod patch list` to see all available patches from your installed mods.
 
 ## Commands
 
@@ -33,19 +28,16 @@ mithril mod patch restore
 mithril mod patch list
 ```
 
-Shows all built-in patches and any custom patches found in your mods' `binary-patches/` directories.
+Shows all patches found in your installed mods' `binary-patches/` directories.
 
 ### Apply Patches
 
 ```bash
-# Apply a built-in patch by name
-mithril mod patch apply allow-custom-gluexml
+# Apply a patch from an installed mod
+mithril mod patch apply my-mod/binary-patches/my-patch.json
 
 # Apply multiple patches at once
-mithril mod patch apply allow-custom-gluexml large-address-aware
-
-# Apply a custom patch from a JSON file
-mithril mod patch apply modules/my-mod/binary-patches/custom.json
+mithril mod patch apply my-mod/binary-patches/patch-a.json my-mod/binary-patches/patch-b.json
 ```
 
 On first apply, a backup of `Wow.exe` is saved as `Wow.exe.clean`. The backup is verified against the known clean WoW 3.3.5a (build 12340) MD5 hash (`45892bdedd0ad70aed4ccd22d9fb5984`).
@@ -122,16 +114,6 @@ modules/my-mod/
 
 This restore-then-apply approach ensures patches never conflict with each other, regardless of application order.
 
-## Build Integration
-
-When `mithril mod build` detects that a mod includes GlueXML or FrameXML addon changes, it checks whether `allow-custom-gluexml` has been applied. If not, it displays a warning:
-
-```
-⚠ Your mod includes GlueXML/FrameXML changes. The client will crash
-  with 'corrupt interface files' unless you apply the binary patch:
-  mithril mod patch apply allow-custom-gluexml
-```
-
 ## Important Notes
 
 - **Patches are designed for the clean WoW 3.3.5a (build 12340) client.** Using a different version may cause crashes or unexpected behavior.
@@ -142,5 +124,5 @@ When `mithril mod build` detects that a mod includes GlueXML or FrameXML addon c
 ## See Also
 
 - [Mods Overview](mods.md) — General modding framework
-- [Addon Workflow](addons-workflow.md) — Addon modding (requires `allow-custom-gluexml`)
+- [Addon Workflow](addons-workflow.md) — Addon modding
 - [DBC Workflow](dbc-workflow.md) — DBC modding

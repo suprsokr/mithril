@@ -129,9 +129,9 @@ The WoW client's built-in UI is implemented as Lua/XML addons inside the MPQ arc
 
 ### Binary Patches
 
-Some mods require changes to the WoW client executable itself (`Wow.exe`). For example, modifying GlueXML or FrameXML files requires disabling the client's interface integrity check. Binary patches are JSON files that describe byte-level changes at specific addresses.
+Some mods require changes to the WoW client executable itself (`Wow.exe`). Binary patches are JSON files that describe byte-level changes at specific addresses.
 
-Binary patches are treated like any other mod content — they live in a mod's `binary-patches/` directory and can be distributed and shared. Mithril also includes built-in patches for common needs. See [Binary Patches Workflow](binary-patches-workflow.md) for the full guide.
+Binary patches are treated like any other mod content — they live in a mod's `binary-patches/` directory and can be distributed and shared. See [Binary Patches Workflow](binary-patches-workflow.md) for the full guide.
 
 ### SQL Migrations
 

@@ -26,7 +26,6 @@ mithril mod create my-mod             # 5. Create a mod
 mithril mod sql create my_dbc_change --mod my-mod --db dbc   # DBC edit via SQL
 mithril mod addon edit Interface/FrameXML/SpellBookFrame.lua --mod my-mod
 mithril mod sql create add_npc --mod my-mod
-mithril mod patch apply allow-custom-gluexml
 
 # --- Build and deploy ---
 mithril mod build                     # 6. Build MPQs, deploy to client + server
@@ -101,7 +100,7 @@ mithril mod addon search <pattern> [--mod <name>]  # Regex search addon files
 mithril mod addon edit <path> --mod <name>         # Edit addon file (copies from baseline on first edit)
 ```
 
-**Important:** Modifying `Interface/GlueXML/` or `Interface/FrameXML/` requires the `allow-custom-gluexml` binary patch or the client will crash.
+**Note:** Modifying `Interface/GlueXML/` or `Interface/FrameXML/` requires a binary patch to Wow.exe to disable the client's interface integrity check, or the client will crash.
 
 ### SQL Migrations
 
@@ -119,13 +118,13 @@ Databases: `world` (default — creatures, items, quests), `characters`, `auth`,
 ### Binary Patches
 
 ```bash
-mithril mod patch list                    # List available patches (built-in + custom)
-mithril mod patch apply <name|path>       # Apply patch to Wow.exe
+mithril mod patch list                    # List available patches from installed mods
+mithril mod patch apply <path>            # Apply patch JSON to Wow.exe
 mithril mod patch status                  # Show applied patches
 mithril mod patch restore                 # Restore Wow.exe from clean backup
 ```
 
-Built-in patches: `allow-custom-gluexml` (required for addon modding), `large-address-aware`.
+Patches are distributed as mods with JSON files in their `binary-patches/` directories.
 
 ### Core Patches
 
