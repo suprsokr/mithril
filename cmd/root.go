@@ -24,25 +24,32 @@ Commands:
 
   mod init         Extract baseline DBCs from client MPQs
   mod create       Create a new named mod
+  mod remove       Remove a mod (directory, build order, trackers)
   mod list         List all mods
   mod status       Show which DBCs have been modified
   mod build        Build combined patch MPQ from all mods
-  mod dbc list     List all baseline DBC files
-  mod dbc search   Search across DBC tables
-  mod dbc inspect  Show schema and sample records for a DBC
+  mod dbc create   Create a DBC SQL migration
+  mod dbc remove   Remove a DBC SQL migration
   mod dbc import   Import baseline DBCs into MySQL for SQL editing
   mod dbc query    Run ad-hoc SQL against the DBC database
   mod dbc export   Export modified DBC tables back to .dbc files
+  mod addon create Copy a baseline addon file into a mod for editing
+  mod addon remove Remove an addon file override from a mod
   mod addon list   List all baseline addon files
   mod addon search Search addon files (regex)
   mod addon edit   Edit an addon file in a mod
+  mod patch create Scaffold a binary patch JSON file
+  mod patch remove Remove a binary patch JSON file
   mod patch list   List available binary patches
-  mod patch apply  Apply a binary patch to Wow.exe
+  mod patch apply  Apply binary patches to Wow.exe
   mod patch status Show applied binary patches
   mod patch restore Restore Wow.exe from clean backup
   mod sql create   Create a SQL migration
+  mod sql remove   Remove a SQL migration
   mod sql apply    Apply pending SQL migrations
   mod sql list     List SQL migrations
+  mod core create  Scaffold a core patch file
+  mod core remove  Remove a core patch file
   mod core apply   Apply TrinityCore core patches
   mod core list    List core patches
   mod registry     Search, browse, and install community mods

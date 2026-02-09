@@ -12,12 +12,16 @@ import (
 
 func runModCore(subcmd string, args []string) error {
 	switch subcmd {
+	case "create":
+		return runModCoreCreate(args)
 	case "list":
 		return runModCoreList(args)
 	case "apply":
 		return runModCoreApply(args)
 	case "status":
 		return runModCoreStatus(args)
+	case "remove":
+		return runModCoreRemove(args)
 	case "-h", "--help", "help":
 		fmt.Print(coreUsage)
 		return nil
@@ -26,12 +30,95 @@ func runModCore(subcmd string, args []string) error {
 	}
 }
 
+// runModCoreCreate scaffolds a new core patch file in a mod.
+func runModCoreCreate(args []string) error {
+	modName, remaining := parseModFlag(args)
+	if len(remaining) < 1 || modName == "" {
+		return fmt.Errorf("usage: mithril mod core create <name> --mod <mod_name>")
+	}
+
+	cfg := DefaultConfig()
+	patchName := remaining[0]
+
+	// Ensure mod exists
+	if _, err := os.Stat(filepath.Join(cfg.ModDir(modName), "mod.json")); os.IsNotExist(err) {
+		return fmt.Errorf("mod not found: %s (run 'mithril mod create %s' first)", modName, modName)
+	}
+
+	// Sanitize name
+	safeName := strings.ReplaceAll(strings.ToLower(patchName), " ", "-")
+	if !strings.HasSuffix(safeName, ".patch") {
+		safeName += ".patch"
+	}
+
+	patchDir := filepath.Join(cfg.ModDir(modName), "core-patches")
+	patchPath := filepath.Join(patchDir, safeName)
+
+	if _, err := os.Stat(patchPath); err == nil {
+		return fmt.Errorf("core patch file already exists: %s", patchPath)
+	}
+
+	if err := os.MkdirAll(patchDir, 0755); err != nil {
+		return fmt.Errorf("create core-patches dir: %w", err)
+	}
+
+	template := fmt.Sprintf(`# Core patch: %s
+# Mod: %s
+#
+# To generate from a TrinityCore fork:
+#   git diff > %s
+# or for committed changes:
+#   git format-patch -1 HEAD --stdout > %s
+#
+# Place this file in: modules/%s/core-patches/
+`, patchName, modName, safeName, safeName, modName)
+
+	if err := os.WriteFile(patchPath, []byte(template), 0644); err != nil {
+		return fmt.Errorf("write core patch file: %w", err)
+	}
+
+	fmt.Printf("✓ Created core patch: %s\n", patchPath)
+	fmt.Printf("  Apply: mithril mod core apply --mod %s\n", modName)
+	return nil
+}
+
+// runModCoreRemove removes a core patch file from a mod.
+func runModCoreRemove(args []string) error {
+	modName, remaining := parseModFlag(args)
+	if len(remaining) < 1 || modName == "" {
+		return fmt.Errorf("usage: mithril mod core remove <name> --mod <mod_name>")
+	}
+
+	cfg := DefaultConfig()
+	patchName := remaining[0]
+	if !strings.HasSuffix(patchName, ".patch") && !strings.HasSuffix(patchName, ".diff") {
+		patchName += ".patch"
+	}
+
+	patchPath := filepath.Join(cfg.ModDir(modName), "core-patches", patchName)
+	if _, err := os.Stat(patchPath); os.IsNotExist(err) {
+		return fmt.Errorf("core patch file not found: %s", patchPath)
+	}
+
+	if err := os.Remove(patchPath); err != nil {
+		return fmt.Errorf("remove core patch file: %w", err)
+	}
+
+	// Clean up empty core-patches/ directory
+	cleanEmptyDirs(filepath.Join(cfg.ModDir(modName), "core-patches"))
+
+	fmt.Printf("✓ Removed core patch: %s\n", patchName)
+	return nil
+}
+
 const coreUsage = `Mithril Mod Core - TrinityCore server core patches
 
 Usage:
   mithril mod core <command> [args]
 
 Commands:
+  create <name> --mod <mod> Scaffold a core patch file
+  remove <name> --mod <mod> Remove a core patch file
   list [--mod <mod>]        List core patches and their status
   apply [--mod <mod>]       Apply pending core patches to TrinityCore
   status [--mod <mod>]      Show which core patches are applied
@@ -41,7 +128,7 @@ After applying, you must rebuild the server:
   mithril mod core apply --mod my-mod
   mithril init --rebuild
 
-Creating patches:
+Creating patches manually:
   Make changes in a TrinityCore fork, then:
     git diff > my-change.patch
   or for committed changes:
@@ -49,6 +136,8 @@ Creating patches:
   Place the .patch file in: modules/<mod>/core-patches/
 
 Examples:
+  mithril mod core create enable-feature --mod my-mod
+  mithril mod core remove enable-feature --mod my-mod
   mithril mod core list
   mithril mod core apply --mod my-mod
   mithril mod core status

@@ -13,18 +13,79 @@ import (
 
 func runModAddon(subcmd string, args []string) error {
 	switch subcmd {
+	case "create":
+		return runModAddonCreate(args)
 	case "list":
 		return runModAddonList(args)
 	case "search":
 		return runModAddonSearch(args)
 	case "edit":
 		return runModAddonEdit(args)
+	case "remove":
+		return runModAddonRemove(args)
 	case "-h", "--help", "help":
 		fmt.Print(modUsage)
 		return nil
 	default:
 		return fmt.Errorf("unknown mod addon command: %s", subcmd)
 	}
+}
+
+// runModAddonCreate copies a baseline addon file into a mod for editing.
+func runModAddonCreate(args []string) error {
+	modName, remaining := parseModFlag(args)
+	if len(remaining) < 1 || modName == "" {
+		return fmt.Errorf("usage: mithril mod addon create <path> --mod <mod_name>\n\nExample: mithril mod addon create Interface/FrameXML/SpellBookFrame.lua --mod my-mod")
+	}
+
+	cfg := DefaultConfig()
+	addonPath := filepath.ToSlash(remaining[0])
+
+	// Ensure mod exists
+	if _, err := os.Stat(filepath.Join(cfg.ModDir(modName), "mod.json")); os.IsNotExist(err) {
+		return fmt.Errorf("mod not found: %s (run 'mithril mod create %s' first)", modName, modName)
+	}
+
+	// Check if already exists in mod
+	modFilePath := filepath.Join(cfg.ModAddonsDir(modName), addonPath)
+	if _, err := os.Stat(modFilePath); err == nil {
+		return fmt.Errorf("addon file already exists in mod: %s", modFilePath)
+	}
+
+	// Copy from baseline
+	if err := copyBaselineAddonToMod(cfg, modName, addonPath); err != nil {
+		return err
+	}
+
+	fmt.Printf("✓ Copied %s into mod '%s'\n", addonPath, modName)
+	fmt.Printf("  File: %s\n", modFilePath)
+	return nil
+}
+
+// runModAddonRemove removes an addon file override from a mod (reverts to baseline).
+func runModAddonRemove(args []string) error {
+	modName, remaining := parseModFlag(args)
+	if len(remaining) < 1 || modName == "" {
+		return fmt.Errorf("usage: mithril mod addon remove <path> --mod <mod_name>")
+	}
+
+	cfg := DefaultConfig()
+	addonPath := filepath.ToSlash(remaining[0])
+
+	modFilePath := filepath.Join(cfg.ModAddonsDir(modName), addonPath)
+	if _, err := os.Stat(modFilePath); os.IsNotExist(err) {
+		return fmt.Errorf("addon file not found in mod '%s': %s", modName, addonPath)
+	}
+
+	if err := os.Remove(modFilePath); err != nil {
+		return fmt.Errorf("remove addon file: %w", err)
+	}
+
+	// Clean up empty parent directories
+	cleanEmptyDirs(cfg.ModAddonsDir(modName))
+
+	fmt.Printf("✓ Removed %s from mod '%s' (will use baseline version)\n", addonPath, modName)
+	return nil
 }
 
 func runModAddonList(args []string) error {

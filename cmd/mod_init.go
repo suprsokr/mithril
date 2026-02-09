@@ -253,8 +253,8 @@ func runModInit(args []string) error {
 	fmt.Println()
 	fmt.Println("Next steps:")
 	fmt.Println("  mithril mod create my-mod              # Create a mod")
-	fmt.Println("  mithril mod dbc list                   # List all DBCs")
-	fmt.Println("  mithril mod dbc search \"Fireball\"       # Search across DBCs")
+	fmt.Println("  mithril mod dbc query \"SHOW TABLES\"     # List all DBC tables")
+	fmt.Println("  mithril mod dbc query \"SELECT id, spell_name_enus FROM spell LIMIT 5\"")
 	fmt.Println("  mithril mod dbc query \"SELECT ...\"      # Query DBC data with SQL")
 	fmt.Println("  mithril mod addon list                 # List all addon files")
 	fmt.Println("  mithril mod addon search \"pattern\"      # Search addon files")
@@ -365,6 +365,24 @@ func addModToBuildOrder(cfg *Config, modName string) error {
 	}
 
 	manifest.BuildOrder = append(manifest.BuildOrder, modName)
+	return saveManifest(cfg.BaselineDir, manifest)
+}
+
+// removeModFromBuildOrder removes a mod from the manifest's build_order.
+func removeModFromBuildOrder(cfg *Config, modName string) error {
+	manifest, err := loadManifest(cfg.BaselineDir)
+	if err != nil {
+		return nil
+	}
+
+	var filtered []string
+	for _, name := range manifest.BuildOrder {
+		if name != modName {
+			filtered = append(filtered, name)
+		}
+	}
+
+	manifest.BuildOrder = filtered
 	return saveManifest(cfg.BaselineDir, manifest)
 }
 

@@ -15,7 +15,7 @@ mithril mod create my-mod
 mithril mod dbc query "SELECT id, name_enus, flags FROM areatable WHERE map_id = 0 LIMIT 5"
 
 # 4. Create a DBC SQL migration
-mithril mod sql create enable_flying --mod my-mod --db dbc
+mithril mod dbc create enable_flying --mod my-mod
 # Edit the generated file with your SQL
 
 # 5. Build the patch (applies migration, exports DBC, packages MPQ)
@@ -71,9 +71,9 @@ mithril mod dbc query "SELECT map_id, COUNT(*) as zones FROM areatable GROUP BY 
 **Other exploration commands:**
 
 ```bash
-mithril mod dbc list                  # List all 97 DBCs with record/field counts
-mithril mod dbc search "Fireball"     # Search across all DBC tables
-mithril mod dbc inspect Spell         # Show schema, field types, and sample records
+mithril mod dbc query "SHOW TABLES"                    # List all DBC tables
+mithril mod dbc query "DESCRIBE spell"                 # Show schema for a DBC table
+mithril mod dbc query "SELECT id, spell_name_enus FROM spell WHERE spell_name_enus LIKE '%Fireball%'"
 ```
 
 ### 4. Edit a DBC
@@ -85,7 +85,7 @@ SQL migrations are the best approach for DBC editing — they're expressive, com
 **Create a migration:**
 
 ```bash
-mithril mod sql create enable_flying --mod my-mod --db dbc
+mithril mod dbc create enable_flying --mod my-mod
 ```
 
 This creates a migration pair in `modules/my-mod/sql/dbc/`:
@@ -189,8 +189,8 @@ mithril mod create spell-tweaks
 mithril mod create custom-talents
 mithril mod create new-items
 
-mithril mod sql create zero_mana --mod spell-tweaks --db dbc
-mithril mod sql create rearrange --mod custom-talents --db dbc
+mithril mod dbc create zero_mana --mod spell-tweaks
+mithril mod dbc create rearrange --mod custom-talents
 ```
 
 `mithril mod build` always builds all mods together into a single `patch-M.MPQ`. DBC SQL migrations are applied in mod-alphabetical order. SQL changes stack since they all modify the same database.

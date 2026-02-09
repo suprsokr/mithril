@@ -104,6 +104,7 @@ mithril-data/
 |---|---|
 | `mithril mod init` | Extract baseline from client MPQs (DBCs, addons) |
 | `mithril mod create <name>` | Create a new named mod |
+| `mithril mod remove <name>` | Remove a mod (directory, build order, trackers) |
 | `mithril mod list` | List all mods and their status |
 | `mithril mod status [--mod <name>]` | Show what a mod has changed |
 | `mithril mod build` | Build combined patch MPQs from all mods |
@@ -139,7 +140,7 @@ SQL migrations modify the TrinityCore server databases and the DBC table data. M
 
 ```bash
 mithril mod sql create add_custom_npc --mod my-mod          # server (world) migration
-mithril mod sql create enable_flying --mod my-mod --db dbc  # DBC migration
+mithril mod dbc create enable_flying --mod my-mod           # DBC migration (shorthand)
 mithril mod sql apply --mod my-mod                          # apply pending
 mithril mod sql rollback --mod my-mod --reapply             # undo + redo (for iterating)
 ```

@@ -68,7 +68,7 @@ func runModDBCImport(args []string) error {
 	fmt.Println("\nYou can now query DBC data with SQL:")
 	fmt.Println("  mithril mod dbc query \"SELECT id, name_enus, flags FROM areatable WHERE map_id = 0 LIMIT 5\"")
 	fmt.Println("\nCreate DBC SQL migrations with:")
-	fmt.Println("  mithril mod sql create <name> --mod <mod_name> --db dbc")
+	fmt.Println("  mithril mod dbc create <name> --mod <mod_name>")
 
 	return nil
 }

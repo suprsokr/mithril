@@ -17,40 +17,55 @@ Usage:
 Commands:
   init                      Extract baseline DBCs from client MPQs
   create <name>             Create a new mod
+  remove <name>             Remove a mod (directory, build order, tracker entries)
   list                      List all mods and their status
   status [--mod <name>]     Show which DBCs a mod has changed
   build                     Build combined patch MPQ from all mods
 
-  dbc list                  List all DBC tables
-  dbc search <pattern>      Search across DBC tables
-  dbc inspect <dbc>         Show schema and sample records
+  dbc create <name> --mod <mod>
+                            Create a DBC SQL migration (shorthand for sql create --db dbc)
+  dbc remove <migration> --mod <mod>
+                            Remove a DBC SQL migration
   dbc import                Import baseline DBCs into MySQL
   dbc query "<SQL>"         Run ad-hoc SQL against the DBC database
   dbc export                Export modified DBC tables to .dbc files
 
+  addon create <path> --mod <name>
+                            Copy a baseline addon file into a mod for editing
+  addon remove <path> --mod <name>
+                            Remove an addon file override (revert to baseline)
   addon list                List all baseline addon files
   addon search <pattern> [--mod <name>]
                             Search addon files (regex)
   addon edit <path> --mod <name>
                             Edit an addon file (lua/xml/toc)
 
+  patch create <name> --mod <name>
+                            Scaffold a binary patch JSON file
+  patch remove <name> --mod <name>
+                            Remove a binary patch JSON file
   patch list                List available binary patches
-  patch apply <name|path>   Apply a binary patch to Wow.exe
+  patch apply --mod <name>  Apply all binary patches from a mod
+  patch apply <path> [...]  Apply specific binary patch files
   patch status              Show applied binary patches
   patch restore             Restore Wow.exe from clean backup
 
   sql create <name> --mod <name> [--db <database>]
                             Create a forward + rollback migration pair
+  sql remove <migration> --mod <name>
+                            Remove a migration (forward + rollback files)
   sql list [--mod <name>]   List SQL migrations
   sql apply [--mod <name>]  Apply pending SQL migrations
   sql rollback --mod <name> [<migration>] [--reapply]
                             Roll back a migration
   sql status [--mod <name>] Show migration status
 
-  core list [--mod <name>]
-                            List TrinityCore core patches
-  core apply [--mod <name>]
-                            Apply core patches to TrinityCore
+  core create <name> --mod <name>
+                            Scaffold a core patch file
+  core remove <name> --mod <name>
+                            Remove a core patch file
+  core list [--mod <name>]  List TrinityCore core patches
+  core apply [--mod <name>] Apply core patches to TrinityCore
   core status [--mod <name>]
                             Show core patch status
 
@@ -65,22 +80,13 @@ Commands:
                             Export pre-built client.zip/server.zip (optional)
 
 Examples:
-  mithril mod init
   mithril mod create my-spell-mod
-  mithril mod dbc query "SELECT id, spell_name_enus FROM spell WHERE id = 133"
-  mithril mod sql create rename_spell --mod my-spell-mod --db dbc
+  mithril mod dbc create rename_spell --mod my-spell-mod
+  mithril mod addon create Interface/FrameXML/SpellBookFrame.lua --mod my-mod
+  mithril mod patch create my-fix --mod my-mod
+  mithril mod core create enable-feature --mod my-mod
   mithril mod build
-  mithril mod addon list
-  mithril mod addon search "SpellBook"
-  mithril mod addon edit Interface/FrameXML/SpellBookFrame.lua --mod my-mod
-  mithril mod sql create add_custom_npc --mod my-mod
-  mithril mod sql apply --mod my-mod
-  mithril mod core apply --mod my-mod
-  mithril mod registry search "flying"
-  mithril mod registry install fly-in-azeroth
-  mithril mod publish register --mod my-mod --repo https://github.com/user/my-mod
-  mithril mod build
-  mithril mod list
+  mithril mod remove my-spell-mod
 `
 
 // ModMeta is the metadata stored in each mod's mod.json.
@@ -104,6 +110,8 @@ func runMod(args []string) error {
 		return runModInit(args[1:])
 	case "create":
 		return runModCreate(args[1:])
+	case "remove":
+		return runModRemove(args[1:])
 	case "list":
 		return runModList(args[1:])
 	case "status":
@@ -113,31 +121,31 @@ func runMod(args []string) error {
 	case "dbc":
 		if len(args) < 2 {
 			fmt.Print(modUsage)
-			return fmt.Errorf("mod dbc requires a subcommand: list, search, inspect, import, query, export")
+			return fmt.Errorf("mod dbc requires a subcommand: create, import, query, export, remove")
 		}
 		return runModDBC(args[1], args[2:])
 	case "addon":
 		if len(args) < 2 {
 			fmt.Print(modUsage)
-			return fmt.Errorf("mod addon requires a subcommand: list, search, edit")
+			return fmt.Errorf("mod addon requires a subcommand: create, list, search, edit, remove")
 		}
 		return runModAddon(args[1], args[2:])
 	case "patch":
 		if len(args) < 2 {
 			fmt.Print(modUsage)
-			return fmt.Errorf("mod patch requires a subcommand: list, apply, status, restore")
+			return fmt.Errorf("mod patch requires a subcommand: create, list, apply, status, restore, remove")
 		}
 		return runModPatch(args[1], args[2:])
 	case "sql":
 		if len(args) < 2 {
 			fmt.Print(modUsage)
-			return fmt.Errorf("mod sql requires a subcommand: create, list, apply, status")
+			return fmt.Errorf("mod sql requires a subcommand: create, list, apply, rollback, status, remove")
 		}
 		return runModSQL(args[1], args[2:])
 	case "core":
 		if len(args) < 2 {
 			fmt.Print(modUsage)
-			return fmt.Errorf("mod core requires a subcommand: list, apply, status")
+			return fmt.Errorf("mod core requires a subcommand: create, list, apply, status, remove")
 		}
 		return runModCore(args[1], args[2:])
 	case "registry":
@@ -206,6 +214,90 @@ func runModCreate(args []string) error {
 	fmt.Printf("✓ Created mod: %s\n", modName)
 	fmt.Printf("  Directory:  %s\n", modDir)
 
+	return nil
+}
+
+// runModRemove removes a mod entirely — directory, build order, and tracker entries.
+func runModRemove(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: mithril mod remove <name>")
+	}
+
+	cfg := DefaultConfig()
+	modName := args[0]
+
+	modDir := cfg.ModDir(modName)
+	if _, err := os.Stat(filepath.Join(modDir, "mod.json")); os.IsNotExist(err) {
+		return fmt.Errorf("mod not found: %s", modName)
+	}
+
+	// Summarize what will be removed
+	fmt.Printf("Removing mod '%s'...\n", modName)
+
+	// Check for SQL migrations that were applied
+	tracker, _ := loadSQLTracker(cfg)
+	var appliedMigrations []AppliedMigration
+	for _, a := range tracker.Applied {
+		if a.Mod == modName {
+			appliedMigrations = append(appliedMigrations, a)
+		}
+	}
+	if len(appliedMigrations) > 0 {
+		fmt.Printf("  ⚠ %d SQL migration(s) from this mod are currently applied:\n", len(appliedMigrations))
+		for _, a := range appliedMigrations {
+			fmt.Printf("    - %s (%s)\n", a.File, a.Database)
+		}
+		fmt.Println("  Tip: Run 'mithril mod sql rollback --mod " + modName + "' first to undo them,")
+		fmt.Println("  or they will remain in the database after the mod is removed.")
+	}
+
+	// Check for core patches that were applied
+	coreTracker, _ := loadCoreTracker(cfg)
+	var appliedCorePatches []AppliedCorePatch
+	for _, a := range coreTracker.Applied {
+		if a.Mod == modName {
+			appliedCorePatches = append(appliedCorePatches, a)
+		}
+	}
+	if len(appliedCorePatches) > 0 {
+		fmt.Printf("  ⚠ %d core patch(es) from this mod are currently applied to TrinityCore source\n", len(appliedCorePatches))
+	}
+
+	// Remove the directory
+	if err := os.RemoveAll(modDir); err != nil {
+		return fmt.Errorf("remove mod directory: %w", err)
+	}
+
+	// Remove from build order
+	if err := removeModFromBuildOrder(cfg, modName); err != nil {
+		fmt.Printf("  ⚠ Failed to update build order: %v\n", err)
+	}
+
+	// Clean up SQL tracker entries for this mod
+	if len(appliedMigrations) > 0 {
+		var kept []AppliedMigration
+		for _, a := range tracker.Applied {
+			if a.Mod != modName {
+				kept = append(kept, a)
+			}
+		}
+		tracker.Applied = kept
+		saveSQLTracker(cfg, tracker)
+	}
+
+	// Clean up core tracker entries for this mod
+	if len(appliedCorePatches) > 0 {
+		var kept []AppliedCorePatch
+		for _, a := range coreTracker.Applied {
+			if a.Mod != modName {
+				kept = append(kept, a)
+			}
+		}
+		coreTracker.Applied = kept
+		saveCoreTracker(cfg, coreTracker)
+	}
+
+	fmt.Printf("✓ Removed mod: %s\n", modName)
 	return nil
 }
 

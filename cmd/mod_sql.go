@@ -22,12 +22,91 @@ func runModSQL(subcmd string, args []string) error {
 		return runModSQLRollback(args)
 	case "status":
 		return runModSQLStatus(args)
+	case "remove":
+		return runModSQLRemove(args)
 	case "-h", "--help", "help":
 		fmt.Print(sqlUsage)
 		return nil
 	default:
 		return fmt.Errorf("unknown mod sql command: %s", subcmd)
 	}
+}
+
+// runModSQLRemove removes a SQL migration pair (forward + rollback) from a mod.
+// If the migration was applied, prompts to execute the rollback script first.
+func runModSQLRemove(args []string) error {
+	modName, remaining := parseModFlag(args)
+	if len(remaining) < 1 || modName == "" {
+		return fmt.Errorf("usage: mithril mod sql remove <migration> --mod <mod_name>")
+	}
+
+	cfg := DefaultConfig()
+	target := remaining[0]
+
+	// Find the migration
+	migrations := findMigrations(cfg, modName)
+	var found *migrationInfo
+	for i, m := range migrations {
+		name := strings.TrimSuffix(m.filename, ".sql")
+		if m.filename == target || name == target || m.filename == target+".sql" {
+			found = &migrations[i]
+			break
+		}
+	}
+
+	if found == nil {
+		return fmt.Errorf("migration '%s' not found in mod '%s'", target, modName)
+	}
+
+	// Check if applied — offer to run rollback
+	tracker, _ := loadSQLTracker(cfg)
+	if tracker.IsApplied(found.mod, found.filename) {
+		rollbackPath := strings.TrimSuffix(found.path, ".sql") + ".rollback.sql"
+		hasRollback := fileExists(rollbackPath)
+
+		if hasRollback {
+			fmt.Printf("Migration '%s' is currently applied to '%s'.\n", found.filename, found.database)
+			if promptYesNo("Run the rollback script to undo changes?") {
+				fmt.Printf("Rolling back %s/%s → %s...\n", found.mod, found.filename, found.database)
+				sqlContent, err := os.ReadFile(rollbackPath)
+				if err != nil {
+					return fmt.Errorf("read rollback file: %w", err)
+				}
+				if err := runSQL(cfg, found.database, string(sqlContent)); err != nil {
+					return fmt.Errorf("execute rollback: %w", err)
+				}
+				fmt.Printf("  ✓ Rolled back %s\n", found.filename)
+			} else {
+				fmt.Println("  Skipping rollback — changes will remain in the database.")
+			}
+		} else {
+			fmt.Printf("  ⚠ Migration '%s' is applied but no rollback script found.\n", found.filename)
+			fmt.Println("  Changes will remain in the database.")
+		}
+
+		// Remove from tracker regardless
+		tracker.Unapply(found.mod, found.filename)
+		saveSQLTracker(cfg, tracker)
+	}
+
+	// Remove forward file
+	if err := os.Remove(found.path); err != nil {
+		return fmt.Errorf("remove migration file: %w", err)
+	}
+	fmt.Printf("  Removed: %s\n", found.path)
+
+	// Remove rollback file if it exists
+	rollbackPath := strings.TrimSuffix(found.path, ".sql") + ".rollback.sql"
+	if _, err := os.Stat(rollbackPath); err == nil {
+		os.Remove(rollbackPath)
+		fmt.Printf("  Removed: %s\n", rollbackPath)
+	}
+
+	// Clean up empty directories
+	cleanEmptyDirs(filepath.Join(cfg.ModDir(modName), "sql"))
+
+	fmt.Printf("✓ Removed migration: %s\n", found.filename)
+	return nil
 }
 
 const sqlUsage = `Mithril Mod SQL - Database migrations
@@ -38,6 +117,8 @@ Usage:
 Commands:
   create <name> --mod <mod> [--db <database>]
                             Create a forward + rollback migration pair
+  remove <migration> --mod <mod>
+                            Remove a migration (forward + rollback files)
   list [--mod <mod>]        List SQL migrations and their status
   apply [--mod <mod>]       Apply pending SQL migrations
   rollback --mod <mod> [<migration>] [--reapply]

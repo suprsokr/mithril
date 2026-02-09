@@ -11,13 +11,16 @@ mithril mod init
 # 2. Create a mod
 mithril mod create my-ui-mod
 
-# 3. Find what to edit
+# 3. Copy a baseline file into your mod for editing
+mithril mod addon create Interface/FrameXML/SpellBookFrame.lua --mod my-ui-mod
+
+# 4. Find what to edit
 mithril mod addon search "SpellButton"
 
-# 4. Edit an addon file
+# 5. Edit the file
 mithril mod addon edit Interface/FrameXML/SpellBookFrame.lua --mod my-ui-mod
 
-# 5. Build and deploy
+# 6. Build and deploy
 mithril mod build --mod my-ui-mod
 ```
 

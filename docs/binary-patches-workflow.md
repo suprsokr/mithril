@@ -5,11 +5,14 @@ Binary patches modify the WoW client executable (`Wow.exe`) at specific byte off
 ## Quick Start
 
 ```bash
+# Scaffold a new binary patch in a mod
+mithril mod patch create my-fix --mod my-mod
+
 # List available patches from installed mods
 mithril mod patch list
 
-# Apply a patch from a mod
-mithril mod patch apply my-mod/binary-patches/my-patch.json
+# Apply all patches from a mod
+mithril mod patch apply --mod my-mod
 
 # Check what's applied
 mithril mod patch status

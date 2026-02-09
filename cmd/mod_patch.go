@@ -11,6 +11,8 @@ import (
 
 func runModPatch(subcmd string, args []string) error {
 	switch subcmd {
+	case "create":
+		return runModPatchCreate(args)
 	case "list":
 		return runModPatchList(args)
 	case "apply":
@@ -19,6 +21,8 @@ func runModPatch(subcmd string, args []string) error {
 		return runModPatchStatus(args)
 	case "restore":
 		return runModPatchRestore(args)
+	case "remove":
+		return runModPatchRemove(args)
 	case "-h", "--help", "help":
 		fmt.Print(patchUsage)
 		return nil
@@ -27,25 +31,152 @@ func runModPatch(subcmd string, args []string) error {
 	}
 }
 
+// runModPatchCreate scaffolds a new binary patch JSON file in a mod.
+func runModPatchCreate(args []string) error {
+	modName, remaining := parseModFlag(args)
+	if len(remaining) < 1 || modName == "" {
+		return fmt.Errorf("usage: mithril mod patch create <name> --mod <mod_name>")
+	}
+
+	cfg := DefaultConfig()
+	patchName := remaining[0]
+
+	// Ensure mod exists
+	if _, err := os.Stat(filepath.Join(cfg.ModDir(modName), "mod.json")); os.IsNotExist(err) {
+		return fmt.Errorf("mod not found: %s (run 'mithril mod create %s' first)", modName, modName)
+	}
+
+	// Sanitize name
+	safeName := strings.ReplaceAll(strings.ToLower(patchName), " ", "-")
+	if !strings.HasSuffix(safeName, ".json") {
+		safeName += ".json"
+	}
+
+	patchDir := filepath.Join(cfg.ModDir(modName), "binary-patches")
+	patchPath := filepath.Join(patchDir, safeName)
+
+	if _, err := os.Stat(patchPath); err == nil {
+		return fmt.Errorf("patch file already exists: %s", patchPath)
+	}
+
+	if err := os.MkdirAll(patchDir, 0755); err != nil {
+		return fmt.Errorf("create binary-patches dir: %w", err)
+	}
+
+	template := fmt.Sprintf(`{
+  "name": "%s",
+  "description": "TODO: describe what this patch does",
+  "patches": [
+    { "address": "0x000000", "bytes": ["0x00"] }
+  ]
+}
+`, strings.TrimSuffix(safeName, ".json"))
+
+	if err := os.WriteFile(patchPath, []byte(template), 0644); err != nil {
+		return fmt.Errorf("write patch file: %w", err)
+	}
+
+	fmt.Printf("✓ Created binary patch: %s\n", patchPath)
+	fmt.Printf("  Apply: mithril mod patch apply --mod %s\n", modName)
+	return nil
+}
+
+// runModPatchRemove removes a binary patch JSON file from a mod.
+// If patches from this mod are applied, prompts to restore Wow.exe and reset the tracker
+// so other patches can be cleanly re-applied.
+func runModPatchRemove(args []string) error {
+	modName, remaining := parseModFlag(args)
+	if len(remaining) < 1 || modName == "" {
+		return fmt.Errorf("usage: mithril mod patch remove <name> --mod <mod_name>")
+	}
+
+	cfg := DefaultConfig()
+	patchName := remaining[0]
+	if !strings.HasSuffix(patchName, ".json") {
+		patchName += ".json"
+	}
+
+	patchPath := filepath.Join(cfg.ModDir(modName), "binary-patches", patchName)
+	if _, err := os.Stat(patchPath); os.IsNotExist(err) {
+		return fmt.Errorf("patch file not found: %s", patchPath)
+	}
+
+	// Check if this patch is currently applied
+	trackerPath := filepath.Join(cfg.ModulesDir, "binary_patches_applied.json")
+	tracker, _ := patcher.LoadTracker(trackerPath)
+	trackerName := modName + "/binary-patches/" + patchName
+	wasApplied := tracker.IsApplied(trackerName)
+
+	if wasApplied {
+		fmt.Printf("Binary patch '%s' is currently applied to Wow.exe.\n", patchName)
+		if promptYesNo("Restore Wow.exe from clean backup and reset patch tracker?") {
+			wowExePath := filepath.Join(cfg.ClientDir, "Wow.exe")
+			if err := patcher.RestoreFromBackup(wowExePath); err != nil {
+				fmt.Printf("  ⚠ Failed to restore backup: %v\n", err)
+			} else {
+				fmt.Println("  ✓ Restored Wow.exe from clean backup")
+			}
+
+			// Reset the tracker — remove all entries so other patches can be re-applied cleanly
+			emptyTracker := &patcher.Tracker{}
+			if err := patcher.SaveTracker(trackerPath, emptyTracker); err != nil {
+				fmt.Printf("  ⚠ Failed to reset tracker: %v\n", err)
+			} else {
+				fmt.Println("  ✓ Patch tracker reset")
+			}
+
+			// Check if other patches need re-applying
+			var otherPatches []string
+			for _, ap := range tracker.Applied {
+				if ap.Name != trackerName {
+					otherPatches = append(otherPatches, ap.Name)
+				}
+			}
+			if len(otherPatches) > 0 {
+				fmt.Printf("\n  The following patches were also cleared and need to be re-applied:\n")
+				for _, name := range otherPatches {
+					fmt.Printf("    - %s\n", name)
+				}
+				fmt.Println("  Run 'mithril mod patch apply ...' to re-apply them.")
+			}
+		} else {
+			fmt.Println("  Skipping restore — Wow.exe retains the applied patch bytes.")
+		}
+	}
+
+	// Remove the patch file
+	if err := os.Remove(patchPath); err != nil {
+		return fmt.Errorf("remove patch file: %w", err)
+	}
+
+	// Clean up empty binary-patches/ directory
+	cleanEmptyDirs(filepath.Join(cfg.ModDir(modName), "binary-patches"))
+
+	fmt.Printf("✓ Removed binary patch: %s\n", patchName)
+	return nil
+}
+
 const patchUsage = `Mithril Mod Patch - Binary patches for Wow.exe
 
 Usage:
   mithril mod patch <command> [args]
 
 Commands:
+  create <name> --mod <name>
+                            Scaffold a binary patch JSON file in a mod
+  remove <name> --mod <name>
+                            Remove a binary patch JSON file from a mod
   list                      List available patches from installed mods
   apply --mod <name>        Apply all patches from a mod's binary-patches/ directory
   apply <path> [...]        Apply one or more specific patch JSON files
   status                    Show which patches have been applied
   restore                   Restore Wow.exe from clean backup
 
-Patches are distributed as mods with JSON files in their binary-patches/ directories.
-Use 'mithril mod patch list' to see all available patches from your installed mods.
-
 Examples:
+  mithril mod patch create my-fix --mod my-mod
+  mithril mod patch apply --mod my-mod
+  mithril mod patch remove my-fix --mod my-mod
   mithril mod patch list
-  mithril mod patch apply --mod allow-custom-gluexml
-  mithril mod patch apply my-mod/binary-patches/my-patch.json
   mithril mod patch status
   mithril mod patch restore
 `

@@ -30,7 +30,7 @@ Specify the database when creating a migration:
 ```bash
 mithril mod sql create set_xp_rate --mod my-mod                  # defaults to "world"
 mithril mod sql create add_realm --mod my-mod --db auth           # auth database
-mithril mod sql create enable_flying --mod my-mod --db dbc        # dbc database
+mithril mod dbc create enable_flying --mod my-mod                 # dbc database (shorthand)
 ```
 
 ## Directory Structure
@@ -129,7 +129,7 @@ The typical iteration cycle when developing a migration:
 
 ```bash
 # Create and write the migration
-mithril mod sql create my_change --mod my-mod --db dbc
+mithril mod dbc create my_change --mod my-mod
 # Edit both files:
 #   sql/dbc/001_my_change.sql          ← forward
 #   sql/dbc/001_my_change.rollback.sql ← rollback

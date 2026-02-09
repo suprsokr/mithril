@@ -23,7 +23,7 @@ mithril mod init                      # 4. Extract baseline DBCs/addons + import
 mithril mod create my-mod             # 5. Create a mod
 
 # --- Make changes (any combination) ---
-mithril mod sql create my_dbc_change --mod my-mod --db dbc   # DBC edit via SQL
+mithril mod dbc create my_dbc_change --mod my-mod            # DBC edit via SQL
 mithril mod addon edit Interface/FrameXML/SpellBookFrame.lua --mod my-mod
 mithril mod sql create add_npc --mod my-mod
 
@@ -71,6 +71,7 @@ The server runs as a single Docker container (`mithril-server`) via Docker Compo
 ```bash
 mithril mod init                          # Extract baseline from client MPQs
 mithril mod create <name>                 # Create a new mod
+mithril mod remove <name>                 # Remove a mod (directory, build order, trackers)
 mithril mod list                          # List all mods
 mithril mod status [--mod <name>]         # Show what changed vs baseline
 mithril mod build                         # Build combined patch MPQs and deploy
@@ -79,13 +80,11 @@ mithril mod build                         # Build combined patch MPQs and deploy
 ### DBC Editing
 
 ```bash
-mithril mod dbc list                      # List all 97 known DBCs
-mithril mod dbc search <pattern>          # Search across all DBC tables
-mithril mod dbc inspect <dbc>             # Show schema, fields, sample rows
+mithril mod dbc create <name> --mod <mod>  # Create a DBC SQL migration
 mithril mod dbc query "<SQL>"             # Ad-hoc SQL against the dbc database
 mithril mod dbc export                    # Export modified tables to .dbc files
 mithril mod dbc import                    # Re-import (only needed if DB was reset)
-mithril mod sql create <name> --mod <name> --db dbc  # Create a DBC SQL migration
+mithril mod dbc create <name> --mod <name>           # Create a DBC SQL migration
 ```
 
 `mod init` automatically imports all baseline DBCs into MySQL tables (e.g., `areatable`, `spell`, `map`).
@@ -95,6 +94,8 @@ Mods create SQL migrations in `sql/dbc/` that run UPDATE/INSERT/DELETE statement
 ### Addon/UI Editing
 
 ```bash
+mithril mod addon create <path> --mod <name>       # Copy baseline addon file into mod for editing
+mithril mod addon remove <path> --mod <name>       # Remove addon override (revert to baseline)
 mithril mod addon list                    # List all baseline addon files (465+)
 mithril mod addon search <pattern> [--mod <name>]  # Regex search addon files
 mithril mod addon edit <path> --mod <name>         # Edit addon file (copies from baseline on first edit)
@@ -106,6 +107,7 @@ mithril mod addon edit <path> --mod <name>         # Edit addon file (copies fro
 
 ```bash
 mithril mod sql create <name> --mod <name> [--db <database>]  # Create forward + rollback pair
+mithril mod sql remove <migration> --mod <name>              # Remove migration (prompts rollback)
 mithril mod sql list [--mod <name>]       # List migrations with applied/pending status
 mithril mod sql apply [--mod <name>]      # Apply pending forward migrations
 mithril mod sql rollback --mod <name> [<migration>] [--reapply]  # Roll back (and optionally re-apply)
@@ -118,8 +120,11 @@ Databases: `world` (default — creatures, items, quests), `characters`, `auth`,
 ### Binary Patches
 
 ```bash
+mithril mod patch create <name> --mod <name>  # Scaffold a binary patch JSON file
+mithril mod patch remove <name> --mod <name>  # Remove a patch (prompts to restore Wow.exe)
 mithril mod patch list                    # List available patches from installed mods
-mithril mod patch apply <path>            # Apply patch JSON to Wow.exe
+mithril mod patch apply --mod <name>      # Apply all patches from a mod
+mithril mod patch apply <path>            # Apply a specific patch JSON to Wow.exe
 mithril mod patch status                  # Show applied patches
 mithril mod patch restore                 # Restore Wow.exe from clean backup
 ```
@@ -129,6 +134,8 @@ Patches are distributed as mods with JSON files in their `binary-patches/` direc
 ### Core Patches
 
 ```bash
+mithril mod core create <name> --mod <name>  # Scaffold a core patch file
+mithril mod core remove <name> --mod <name>  # Remove a core patch file
 mithril mod core list [--mod <name>]      # List core patches
 mithril mod core apply [--mod <name>]     # Apply .patch files to TrinityCore source
 ```
@@ -197,12 +204,12 @@ mithril/
 │   ├── mod.go                          # mod subcommand dispatch, ModMeta struct
 │   ├── mod_init.go                     # mod init (baseline extraction)
 │   ├── mod_build.go                    # mod build (SQL→DBC, MPQ packaging, deploy)
-│   ├── mod_dbc.go                      # mod dbc list/search/inspect/import/query/export
+│   ├── mod_dbc.go                      # mod dbc create/import/query/export
 │   ├── mod_dbc_sql.go                  # mod dbc import/query/export (native MySQL driver)
-│   ├── mod_addon.go                    # mod addon list/search/edit
-│   ├── mod_sql.go                      # mod sql create/list/apply/rollback
-│   ├── mod_core.go                     # mod core list/apply
-│   ├── mod_patch.go                    # mod patch list/apply/status/restore
+│   ├── mod_addon.go                    # mod addon create/remove/list/search/edit
+│   ├── mod_sql.go                      # mod sql create/remove/list/apply/rollback
+│   ├── mod_core.go                     # mod core create/remove/list/apply
+│   ├── mod_patch.go                    # mod patch create/remove/list/apply/status/restore
 │   ├── mod_registry.go                 # mod registry list/search/info/install
 │   ├── mod_publish.go                  # mod publish register/export
 │   ├── helpers.go                      # Shared utilities (file ops, printing, flag parsing)
@@ -237,7 +244,7 @@ mithril/
 ### Creating a mod end-to-end
 
 1. `mithril mod create <name>` — creates the mod directory and `mod.json`
-2. Make changes using `addon edit`, `sql create`, etc.
+2. Make changes using `addon create`, `sql create`, `dbc create`, `patch create`, `core create`, etc.
 3. `mithril mod build` — builds all mods and deploys to client + server
 4. `mithril mod sql apply --mod <name>` — applies SQL migrations (if any)
 5. `mithril server restart` — picks up server-side changes
@@ -249,7 +256,7 @@ Use DBC SQL migrations. `mod init` imports all DBCs into MySQL automatically:
 ```bash
 mithril mod dbc query "DESCRIBE areatable"                      # See schema
 mithril mod dbc query "SELECT id, name_enus, flags FROM areatable WHERE map_id = 0 LIMIT 5"  # Explore data
-mithril mod sql create enable_flying --mod my-mod --db dbc      # Create forward + rollback pair
+mithril mod dbc create enable_flying --mod my-mod               # Create forward + rollback pair
 # Edit both: sql/dbc/001_enable_flying.sql and sql/dbc/001_enable_flying.rollback.sql
 mithril mod build                        # Applies migration + exports + packages
 
@@ -269,7 +276,7 @@ This creates a pair: `NNN_<name>.sql` (forward) and `NNN_<name>.rollback.sql` (r
 ### Searching for game data
 
 ```bash
-mithril mod dbc search "Fireball"        # Search all DBC tables
+mithril mod dbc query "SELECT id, spell_name_enus FROM spell WHERE spell_name_enus LIKE '%Fireball%'"
 mithril mod addon search "SpellButton"   # Search all addon Lua/XML/TOC files
 ```
 

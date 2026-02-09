@@ -162,6 +162,29 @@ func (wc *writeCounter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
+// cleanEmptyDirs removes empty directories bottom-up starting from the given root.
+func cleanEmptyDirs(root string) {
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		return nil // just walk to collect paths
+	})
+	// Walk bottom-up by collecting dirs first
+	var dirs []string
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || !info.IsDir() {
+			return nil
+		}
+		dirs = append(dirs, path)
+		return nil
+	})
+	// Remove in reverse order (deepest first)
+	for i := len(dirs) - 1; i >= 0; i-- {
+		entries, err := os.ReadDir(dirs[i])
+		if err == nil && len(entries) == 0 {
+			os.Remove(dirs[i])
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Interactive helpers
 // ---------------------------------------------------------------------------
