@@ -244,42 +244,74 @@ func runModRemove(args []string) error {
 		return fmt.Errorf("mod not found: %s", modName)
 	}
 
-	// Summarize what will be removed
-	fmt.Printf("Removing mod '%s'...\n", modName)
-
-	// Check for SQL migrations that were applied
+	// Gather what this mod has
 	tracker, _ := loadSQLTracker(cfg)
+	coreTracker, _ := loadCoreTracker(cfg)
+	hadScripts := len(findModScripts(cfg, modName)) > 0
+
 	var appliedMigrations []AppliedMigration
 	for _, a := range tracker.Applied {
 		if a.Mod == modName {
 			appliedMigrations = append(appliedMigrations, a)
 		}
 	}
-	if len(appliedMigrations) > 0 {
-		fmt.Printf("  ⚠ %d SQL migration(s) from this mod are currently applied:\n", len(appliedMigrations))
-		for _, a := range appliedMigrations {
-			fmt.Printf("    - %s (%s)\n", a.File, a.Database)
-		}
-		fmt.Println("  Tip: Run 'mithril mod sql rollback --mod " + modName + "' first to undo them,")
-		fmt.Println("  or they will remain in the database after the mod is removed.")
-	}
-
-	// Check for core patches that were applied
-	coreTracker, _ := loadCoreTracker(cfg)
 	var appliedCorePatches []AppliedCorePatch
 	for _, a := range coreTracker.Applied {
 		if a.Mod == modName {
 			appliedCorePatches = append(appliedCorePatches, a)
 		}
 	}
+
+	// Summarize what will be cleaned up
+	fmt.Printf("Removing mod '%s'...\n", modName)
+	if len(appliedMigrations) > 0 {
+		fmt.Printf("  %d applied SQL migration(s)\n", len(appliedMigrations))
+	}
 	if len(appliedCorePatches) > 0 {
-		fmt.Printf("  ⚠ %d core patch(es) from this mod are currently applied to TrinityCore source\n", len(appliedCorePatches))
+		fmt.Printf("  %d applied core patch(es)\n", len(appliedCorePatches))
+	}
+	if hadScripts {
+		fmt.Printf("  scripts in container\n")
 	}
 
-	// Check for scripts before removing the directory
-	hadScripts := len(findModScripts(cfg, modName)) > 0
+	if !promptYesNo(fmt.Sprintf("Remove mod '%s' and undo all its changes?", modName)) {
+		fmt.Println("Cancelled.")
+		return nil
+	}
 
-	// Remove the directory
+	needsRestart := false
+
+	// Roll back SQL migrations in reverse order
+	if len(appliedMigrations) > 0 {
+		containerID, err := composeContainerID(cfg)
+		if err == nil && containerID != "" {
+			fmt.Println()
+			fmt.Printf("Rolling back %d SQL migration(s)...\n", len(appliedMigrations))
+			for i := len(appliedMigrations) - 1; i >= 0; i-- {
+				a := appliedMigrations[i]
+				rollbackFile := strings.TrimSuffix(a.File, ".sql") + ".rollback.sql"
+				rollbackPath := filepath.Join(cfg.ModDir(modName), "sql", a.Database, rollbackFile)
+				data, err := os.ReadFile(rollbackPath)
+				if err != nil {
+					fmt.Printf("  ⚠ No rollback file for %s (%s) — skipping\n", a.File, a.Database)
+					continue
+				}
+				fmt.Printf("  Rolling back %s/%s... ", a.Database, a.File)
+				if err := execSQL(cfg, containerID, a.Database, string(data)); err != nil {
+					fmt.Printf("⚠ failed: %v\n", err)
+				} else {
+					fmt.Println("✓")
+					needsRestart = true
+				}
+			}
+		} else {
+			fmt.Println()
+			fmt.Printf("  ⚠ Server not running — cannot roll back %d SQL migration(s).\n", len(appliedMigrations))
+			fmt.Println("    The migrations will remain in the database.")
+		}
+	}
+
+	// Remove the mod directory
 	if err := os.RemoveAll(modDir); err != nil {
 		return fmt.Errorf("remove mod directory: %w", err)
 	}
@@ -289,7 +321,7 @@ func runModRemove(args []string) error {
 		fmt.Printf("  ⚠ Failed to update build order: %v\n", err)
 	}
 
-	// Clean up SQL tracker entries for this mod
+	// Clean up SQL tracker entries
 	if len(appliedMigrations) > 0 {
 		var kept []AppliedMigration
 		for _, a := range tracker.Applied {
@@ -301,7 +333,7 @@ func runModRemove(args []string) error {
 		saveSQLTracker(cfg, tracker)
 	}
 
-	// Clean up core tracker entries for this mod
+	// Clean up core tracker entries
 	if len(appliedCorePatches) > 0 {
 		var kept []AppliedCorePatch
 		for _, a := range coreTracker.Applied {
@@ -313,26 +345,28 @@ func runModRemove(args []string) error {
 		saveCoreTracker(cfg, coreTracker)
 	}
 
-	fmt.Printf("✓ Removed mod: %s\n", modName)
+	fmt.Printf("\n✓ Removed mod: %s\n", modName)
 
-	// If the mod had scripts, sync to container and offer to rebuild
+	// Remove scripts from container and rebuild if needed
 	if hadScripts {
 		changed, err := syncScriptsToContainer(cfg)
 		if err != nil {
 			fmt.Printf("  ⚠ Error syncing scripts: %v\n", err)
 		} else if changed {
-			fmt.Println()
-			if promptYesNo("This mod had scripts. Rebuild the server to remove them?") {
-				if err := serverRebuild(cfg); err != nil {
-					fmt.Printf("  ⚠ Server rebuild failed: %v\n", err)
-					fmt.Println("  You can retry manually with: mithril server rebuild")
-				} else {
-					fmt.Println()
-					fmt.Println("⚠ Restart the server to load the new build:")
-					fmt.Println("  mithril server restart")
-				}
+			fmt.Println("  Removing scripts from server...")
+			if err := serverRebuild(cfg); err != nil {
+				fmt.Printf("  ⚠ Server rebuild failed: %v\n", err)
+				fmt.Println("  You can retry manually with: mithril server rebuild")
+			} else {
+				needsRestart = true
 			}
 		}
+	}
+
+	if needsRestart {
+		fmt.Println()
+		fmt.Println("⚠ Restart the server for changes to take effect:")
+		fmt.Println("  mithril server restart")
 	}
 
 	return nil
