@@ -12,6 +12,8 @@ Usage:
 Commands:
   init             Initialize the Mithril dev environment (build Docker image,
                    clone TrinityCore, compile, extract maps, setup database)
+  clean            Remove mithril-data/ and Docker resources (preserves mods by default)
+  clean --all      Remove everything including mods
   server start     Start the TrinityCore server containers
   server stop      Stop the TrinityCore server containers
   server restart   Restart the TrinityCore server containers
@@ -69,6 +71,8 @@ func Execute(args []string) error {
 	switch args[0] {
 	case "init":
 		return runInit(args[1:])
+	case "clean":
+		return runClean(args[1:])
 	case "server":
 		if len(args) < 2 {
 			fmt.Print(usage)
