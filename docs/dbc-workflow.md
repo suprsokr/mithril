@@ -37,7 +37,7 @@ This scans the client's `Data/` folder, opens all MPQ archives in the correct pa
 
 Output:
 - `modules/baseline/dbc/` — raw `.dbc` binaries
-- `modules/baseline/manifest.json` — extraction metadata
+- `modules/manifest.json` — extraction metadata and build order
 - MySQL `dbc` database — all 97 DBC tables (e.g., `areatable`, `spell`, `map`)
 
 > **Note:** The server must be running for the MySQL import step. If it isn't, `mod init` will warn and you can import later with `mithril mod dbc import`.

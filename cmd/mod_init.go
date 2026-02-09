@@ -23,7 +23,7 @@ type Manifest struct {
 	// when they modify the same file. Mods on disk but not listed here are
 	// appended alphabetically after the explicit list.
 	// Automatically populated when mods are created or installed.
-	// Users can reorder entries in modules/baseline/manifest.json to change priority.
+	// Users can reorder entries in modules/manifest.json to change priority.
 	BuildOrder []string `json:"build_order"`
 }
 
@@ -109,7 +109,7 @@ func runModInit(args []string) error {
 
 	// Preserve existing build_order if re-initializing
 	var existingBuildOrder []string
-	if oldManifest, err := loadManifest(cfg.BaselineDir); err == nil {
+	if oldManifest, err := loadManifest(cfg.ModulesDir); err == nil {
 		existingBuildOrder = oldManifest.BuildOrder
 	}
 
@@ -175,7 +175,7 @@ func runModInit(args []string) error {
 	}
 
 	// Write manifest
-	manifestPath := filepath.Join(cfg.BaselineDir, "manifest.json")
+	manifestPath := filepath.Join(cfg.ModulesDir, "manifest.json")
 	manifestData, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal manifest: %w", err)
@@ -327,9 +327,9 @@ func normalizeDBCFilename(filename string) string {
 	return baseNormalized + ".dbc"
 }
 
-// loadManifest loads the baseline manifest.
-func loadManifest(baselineDir string) (*Manifest, error) {
-	data, err := os.ReadFile(filepath.Join(baselineDir, "manifest.json"))
+// loadManifest loads the manifest from the modules directory.
+func loadManifest(modulesDir string) (*Manifest, error) {
+	data, err := os.ReadFile(filepath.Join(modulesDir, "manifest.json"))
 	if err != nil {
 		return nil, err
 	}
@@ -340,18 +340,18 @@ func loadManifest(baselineDir string) (*Manifest, error) {
 	return &m, nil
 }
 
-// saveManifest writes the manifest back to disk.
-func saveManifest(baselineDir string, manifest *Manifest) error {
+// saveManifest writes the manifest to the modules directory.
+func saveManifest(modulesDir string, manifest *Manifest) error {
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal manifest: %w", err)
 	}
-	return os.WriteFile(filepath.Join(baselineDir, "manifest.json"), data, 0644)
+	return os.WriteFile(filepath.Join(modulesDir, "manifest.json"), data, 0644)
 }
 
 // addModToBuildOrder appends a mod to the manifest's build_order if not already present.
 func addModToBuildOrder(cfg *Config, modName string) error {
-	manifest, err := loadManifest(cfg.BaselineDir)
+	manifest, err := loadManifest(cfg.ModulesDir)
 	if err != nil {
 		// No manifest yet (baseline not initialized) — silently skip.
 		return nil
@@ -365,12 +365,12 @@ func addModToBuildOrder(cfg *Config, modName string) error {
 	}
 
 	manifest.BuildOrder = append(manifest.BuildOrder, modName)
-	return saveManifest(cfg.BaselineDir, manifest)
+	return saveManifest(cfg.ModulesDir, manifest)
 }
 
 // removeModFromBuildOrder removes a mod from the manifest's build_order.
 func removeModFromBuildOrder(cfg *Config, modName string) error {
-	manifest, err := loadManifest(cfg.BaselineDir)
+	manifest, err := loadManifest(cfg.ModulesDir)
 	if err != nil {
 		return nil
 	}
@@ -383,7 +383,7 @@ func removeModFromBuildOrder(cfg *Config, modName string) error {
 	}
 
 	manifest.BuildOrder = filtered
-	return saveManifest(cfg.BaselineDir, manifest)
+	return saveManifest(cfg.ModulesDir, manifest)
 }
 
 // countBaselineDBCs counts .dbc files in the baseline directory.

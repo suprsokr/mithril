@@ -366,7 +366,7 @@ func getAllMods(cfg *Config) []string {
 	}
 	diskMods := listMods(cfg, entries)
 
-	manifest, err := loadManifest(cfg.BaselineDir)
+	manifest, err := loadManifest(cfg.ModulesDir)
 	if err != nil || len(manifest.BuildOrder) == 0 {
 		return diskMods
 	}

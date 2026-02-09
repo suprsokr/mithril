@@ -197,9 +197,9 @@ func collectModAddons(cfg *Config, mod string) []builtFile {
 	return files
 }
 
-// detectLocaleFromManifest reads the locale from the baseline manifest, with fallback.
+// detectLocaleFromManifest reads the locale from the manifest, with fallback.
 func detectLocaleFromManifest(cfg *Config) string {
-	manifest, err := loadManifest(cfg.BaselineDir)
+	manifest, err := loadManifest(cfg.ModulesDir)
 	if err == nil && manifest.Locale != "" {
 		return manifest.Locale
 	}
@@ -324,7 +324,7 @@ func runModStatus(args []string) error {
 	modName, _ := parseModFlag(args)
 	cfg := DefaultConfig()
 
-	manifest, err := loadManifest(cfg.BaselineDir)
+	manifest, err := loadManifest(cfg.ModulesDir)
 	if err != nil {
 		return fmt.Errorf("baseline not found — run 'mithril mod init' first")
 	}

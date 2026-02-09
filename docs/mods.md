@@ -50,7 +50,7 @@ The patch letter (default "M") can be customized in `mithril-data/mithril.json`:
 
 When multiple mods are built together, `mithril mod build` processes them in a defined order. Mods processed later override files from earlier mods when they modify the same file (DBC or addon).
 
-The build order is stored in `modules/baseline/manifest.json` under the `build_order` key:
+The build order is stored in `modules/manifest.json` under the `build_order` key:
 
 ```json
 {
@@ -60,7 +60,7 @@ The build order is stored in `modules/baseline/manifest.json` under the `build_o
 
 **Automatic ordering:** When you create a mod (`mithril mod create`) or install one (`mithril mod registry install`), it is automatically appended to `build_order`. This means mods are built in the order they were added — later mods take priority.
 
-**Manual override:** You can reorder entries in `modules/baseline/manifest.json` to change priority. Mods listed later override earlier ones for conflicting files.
+**Manual override:** You can reorder entries in `modules/manifest.json` to change priority. Mods listed later override earlier ones for conflicting files.
 
 ## Directory Structure
 
@@ -72,10 +72,10 @@ mithril-data/
 │   └── patch-M.MPQ                 # ← Combined build, deployed by mithril mod build
 │
 └── modules/
+    ├── manifest.json               # Extraction metadata + build_order
     ├── baseline/                   # Shared pristine reference (never edit)
     │   ├── dbc/                    # Raw .dbc binaries from MPQ chain
-    │   ├── addons/                 # Baseline addon files (lua/xml/toc)
-    │   └── manifest.json           # Extraction metadata + build_order
+    │   └── addons/                 # Baseline addon files (lua/xml/toc)
     │
     ├── my-spell-mod/               # A named mod
     │   ├── mod.json                # Mod metadata (name, description, created_at)
