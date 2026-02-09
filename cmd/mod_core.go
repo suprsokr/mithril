@@ -126,7 +126,7 @@ Commands:
 Core patches are standard git .patch files placed in a mod's core-patches/ directory.
 After applying, you must rebuild the server:
   mithril mod core apply --mod my-mod
-  mithril init --rebuild
+  mithril server rebuild
 
 Creating patches manually:
   Make changes in a TrinityCore fork, then:
@@ -364,8 +364,8 @@ func runModCoreApply(args []string) error {
 	} else {
 		fmt.Printf("\n✓ Applied %d core patch(es) to TrinityCore\n", applied)
 		fmt.Println()
-		fmt.Println("To use the patched server, rebuild the Docker image:")
-		fmt.Println("  mithril init --rebuild")
+		fmt.Println("To use the patched server, rebuild TrinityCore:")
+		fmt.Println("  mithril server rebuild")
 		fmt.Println()
 		fmt.Println("Note: This will recompile TrinityCore with your changes.")
 	}

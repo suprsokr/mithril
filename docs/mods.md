@@ -24,6 +24,7 @@ A mod can contain any combination of:
 - **Binary patches** — Byte-level patches to `Wow.exe` described as JSON files
 - **SQL migrations** — Database changes with forward + rollback pairs (server databases and DBC tables)
 - **Core patches** — TrinityCore C++ code changes as git `.patch` files
+- **Scripts** — Custom TrinityCore C++ server scripts (creature AI, spell handlers, commands, etc.)
 
 Mods are:
 
@@ -88,8 +89,10 @@ mithril-data/
     │   │   └── dbc/                # DBC SQL migrations
     │   │       ├── 001_enable_flying.sql
     │   │       └── 001_enable_flying.rollback.sql
-    │   └── core-patches/           # TrinityCore C++ patches
-    │       └── 001_custom_handler.patch
+    │   ├── core-patches/           # TrinityCore C++ patches
+    │   │   └── 001_custom_handler.patch
+    │   └── scripts/                # Custom C++ server scripts
+    │       └── my_custom_npc.cpp
     │
     ├── my-item-mod/                # Another mod
     │
@@ -116,6 +119,7 @@ Each mod type has its own set of commands documented in the workflow guides:
 - **[Binary Patches Workflow](binary-patches-workflow.md)** — `mithril mod patch *` — Patching the client executable
 - **[SQL Workflow](sql-workflow.md)** — `mithril mod sql *` — Server-side database migrations
 - **[Core Patches Workflow](core-patches-workflow.md)** — `mithril mod core *` — TrinityCore C++ patches
+- **[Scripts Workflow](scripts-workflow.md)** — `mithril mod script *` — Custom C++ server scripts
 - **[Sharing Mods](sharing-mods.md)** — `mithril mod registry *` / `mithril mod publish *` — Discover, install, and share mods
 
 ## Supported Modding Workflows
@@ -153,7 +157,7 @@ Core patches modify the TrinityCore C++ server code — adding new features, cus
 
 ```bash
 mithril mod core apply --mod my-mod
-mithril init --rebuild
+mithril server rebuild
 ```
 
 See [Core Patches Workflow](core-patches-workflow.md) for the full guide.

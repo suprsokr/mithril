@@ -16,7 +16,7 @@ cp my-change.patch modules/my-mod/core-patches/
 mithril mod core apply --mod my-mod
 
 # 4. Rebuild the server
-mithril init --rebuild
+mithril server rebuild
 ```
 
 ## Directory Structure
@@ -103,8 +103,8 @@ Shows applied/pending status for each patch.
 Core patches modify the TrinityCore C++ code, which must be recompiled for changes to take effect. After applying patches:
 
 ```bash
-# Rebuild the Docker image (recompiles TrinityCore)
-mithril init --rebuild
+# Recompile TrinityCore (incremental)
+mithril server rebuild
 
 # Restart the server with the new build
 mithril server restart

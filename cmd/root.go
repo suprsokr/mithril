@@ -17,6 +17,7 @@ Commands:
   server start     Start the TrinityCore server containers
   server stop      Stop the TrinityCore server containers
   server restart   Restart the TrinityCore server containers
+  server rebuild   Recompile TrinityCore inside the container (incremental)
   server status    Show status of the TrinityCore server containers
   server attach    Attach to the worldserver console
   server logs      Stream container logs (Ctrl+C to stop)
@@ -54,6 +55,9 @@ Commands:
   mod core remove  Remove a core patch file
   mod core apply   Apply TrinityCore core patches
   mod core list    List core patches
+  mod script create Create a C++ server script
+  mod script remove Remove a server script
+  mod script list  List server scripts
   mod registry     Search, browse, and install community mods
   mod publish      Register mods for sharing (and optionally export artifacts)
 

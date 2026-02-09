@@ -7,15 +7,13 @@ import (
 )
 
 // buildDockerImage builds the mithril-server Docker image from the generated Dockerfile.
-// --no-cache is used to ensure freshly-generated Dockerfiles and scripts are
-// not masked by stale build-cache layers.
 func buildDockerImage(cfg *Config) error {
-	return runCmdDir(cfg.MithrilDir, "docker", "build", "--no-cache", "-t", "mithril-server:latest", ".")
+	return runCmdDir(cfg.MithrilDir, "docker", "build", "-t", "mithril-server:latest", ".")
 }
 
-// writeDockerfile generates the multi-stage Dockerfile that clones and compiles
-// TrinityCore 3.3.5 inside an Ubuntu 24.04 image, then produces a slim runtime
-// image with MySQL 8.
+// writeDockerfile generates the single-stage Dockerfile that clones and compiles
+// TrinityCore 3.3.5 inside an Ubuntu 24.04 image. Build tools and the source
+// tree are retained for incremental rebuilds via "mithril server rebuild".
 func writeDockerfile(path string) error {
 	return os.WriteFile(path, []byte(dockerfile), 0644)
 }
@@ -83,23 +81,29 @@ func writeContainerScripts(cfg *Config) error {
 // Dockerfile
 // ---------------------------------------------------------------------------
 
-const dockerfile = `# Mithril TrinityCore 3.3.5 — Ubuntu 24.04 multi-stage build
-FROM ubuntu:24.04 AS builder
+const dockerfile = `# Mithril TrinityCore 3.3.5 — Ubuntu 24.04 single-stage build
+# Source tree and build tools are retained for incremental rebuilds
+# via "mithril server rebuild".
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Install build tools + runtime dependencies in a single layer
 RUN apt-get update && apt-get install -y \
     git clang cmake make gcc g++ \
     libmysqlclient-dev libssl-dev libbz2-dev \
     libreadline-dev libncurses-dev libboost-all-dev \
-    p7zip-full p7zip \
+    mysql-server \
+    iproute2 p7zip-full p7zip gosu \
     && update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100 \
     && update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 100 \
     && rm -rf /var/lib/apt/lists/*
 
+# Clone TrinityCore source (retained for incremental rebuilds)
 RUN git clone -b 3.3.5 --depth 1 \
     https://github.com/TrinityCore/TrinityCore.git /src/TrinityCore
 
+# Initial build
 WORKDIR /src/TrinityCore/build
 RUN cmake ../ \
     -DCMAKE_INSTALL_PREFIX=/opt/trinitycore \
@@ -110,20 +114,8 @@ RUN cmake ../ \
     && make -j $(nproc) \
     && make install
 
-# --- runtime ---
-FROM ubuntu:24.04
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y \
-    mysql-server \
-    libmysqlclient21 libssl3 libreadline8t64 \
-    libboost-all-dev \
-    iproute2 p7zip-full p7zip gosu \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /opt/trinitycore /opt/trinitycore
-COPY --from=builder /src/TrinityCore/sql /opt/trinitycore/sql
+# Copy SQL base files to the install directory (make install doesn't include these)
+RUN cp -r /src/TrinityCore/sql /opt/trinitycore/sql
 
 RUN useradd -m -s /bin/bash trinity \
     && mkdir -p \

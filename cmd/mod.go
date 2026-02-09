@@ -69,6 +69,13 @@ Commands:
   core status [--mod <name>]
                             Show core patch status
 
+  script create <name> --mod <name>
+                            Create a C++ server script file
+  script remove <name> --mod <name>
+                            Remove a script file
+  script list [--mod <name>]
+                            List all server scripts
+
   registry list             List all mods in the community registry
   registry search <query>   Search mods by name, tags, or description
   registry info <name>      Show detailed info about a registry mod
@@ -148,6 +155,12 @@ func runMod(args []string) error {
 			return fmt.Errorf("mod core requires a subcommand: create, list, apply, status, remove")
 		}
 		return runModCore(args[1], args[2:])
+	case "script":
+		if len(args) < 2 {
+			fmt.Print(modUsage)
+			return fmt.Errorf("mod script requires a subcommand: create, list, remove")
+		}
+		return runModScript(args[1], args[2:])
 	case "registry":
 		if len(args) < 2 {
 			fmt.Print(modUsage)
@@ -263,6 +276,9 @@ func runModRemove(args []string) error {
 		fmt.Printf("  ⚠ %d core patch(es) from this mod are currently applied to TrinityCore source\n", len(appliedCorePatches))
 	}
 
+	// Check for scripts before removing the directory
+	hadScripts := len(findModScripts(cfg, modName)) > 0
+
 	// Remove the directory
 	if err := os.RemoveAll(modDir); err != nil {
 		return fmt.Errorf("remove mod directory: %w", err)
@@ -298,6 +314,27 @@ func runModRemove(args []string) error {
 	}
 
 	fmt.Printf("✓ Removed mod: %s\n", modName)
+
+	// If the mod had scripts, sync to container and offer to rebuild
+	if hadScripts {
+		changed, err := syncScriptsToContainer(cfg)
+		if err != nil {
+			fmt.Printf("  ⚠ Error syncing scripts: %v\n", err)
+		} else if changed {
+			fmt.Println()
+			if promptYesNo("This mod had scripts. Rebuild the server to remove them?") {
+				if err := serverRebuild(cfg); err != nil {
+					fmt.Printf("  ⚠ Server rebuild failed: %v\n", err)
+					fmt.Println("  You can retry manually with: mithril server rebuild")
+				} else {
+					fmt.Println()
+					fmt.Println("⚠ Restart the server to load the new build:")
+					fmt.Println("  mithril server restart")
+				}
+			}
+		}
+	}
+
 	return nil
 }
 

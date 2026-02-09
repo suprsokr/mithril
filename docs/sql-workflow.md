@@ -217,6 +217,6 @@ WHERE RewardXPDifficulty > 0;
 - **Use high entry IDs** (100000+) for custom content to avoid conflicts with TrinityCore updates
 - **The server must be running** for `sql apply` on world/auth/characters databases
 - Some changes take effect immediately (creature spawns), others require a server restart (template changes)
-- DBC migrations are automatically applied during `mod build` — you don't need to run `sql apply` separately
+- All migrations (DBC and server) are automatically applied during `mod build` — you don't need to run `sql apply` separately
 - Use `--reapply` to iterate quickly: edit the SQL, rollback+reapply in one command
 - Migrations run in filename order — use the `NNN_` prefix to control execution sequence

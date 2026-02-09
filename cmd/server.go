@@ -24,6 +24,8 @@ func runServer(subcmd string, args []string) error {
 		return serverStop(cfg)
 	case "restart":
 		return serverRestart(cfg)
+	case "rebuild":
+		return serverRebuild(cfg)
 	case "status":
 		return serverStatus(cfg)
 	case "attach":
@@ -36,7 +38,7 @@ func runServer(subcmd string, args []string) error {
 		}
 		return runAccount(args[0], args[1:])
 	default:
-		return fmt.Errorf("unknown server subcommand: %s (use start, stop, restart, status, attach, logs, account)", subcmd)
+		return fmt.Errorf("unknown server subcommand: %s (use start, stop, restart, rebuild, status, attach, logs, account)", subcmd)
 	}
 }
 
@@ -96,6 +98,48 @@ func serverRestart(cfg *Config) error {
 		return fmt.Errorf("failed to restart server: %w", err)
 	}
 	printSuccess("Server restarted")
+	return nil
+}
+
+func serverRebuild(cfg *Config) error {
+	printInfo("Rebuilding TrinityCore inside the running container (incremental)...")
+
+	containerID, err := composeContainerID(cfg)
+	if err != nil || containerID == "" {
+		return fmt.Errorf("server container is not running — start it with 'mithril server start'")
+	}
+
+	// Run cmake + make + make install inside the container.
+	// The build directory and object files persist in the container,
+	// so only changed source files are recompiled.
+	rebuildScript := `set -e
+cd /src/TrinityCore/build
+echo "=== Running cmake ==="
+cmake ../ \
+    -DCMAKE_INSTALL_PREFIX=/opt/trinitycore \
+    -DTOOLS=1 \
+    -DWITH_WARNINGS=0 \
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++ \
+    -DUSE_SCRIPTPCH=0
+echo "=== Compiling (incremental) ==="
+make -j $(nproc)
+echo "=== Installing ==="
+make install
+echo "=== Rebuild complete ==="
+`
+
+	cmd := exec.Command("docker", "exec", containerID, "bash", "-c", rebuildScript)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("rebuild failed: %w", err)
+	}
+
+	printSuccess("TrinityCore rebuilt successfully")
+	fmt.Println()
+	printInfo("Restart the server to use the new build:")
+	printInfo("  mithril server restart")
 	return nil
 }
 

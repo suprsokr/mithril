@@ -59,7 +59,14 @@ func runModBuild(args []string) error {
 		// Collect addon files
 		addonFiles := collectModAddons(cfg, mod)
 
-		if len(dbcFiles) == 0 && len(addonFiles) == 0 {
+		// Show script count for this mod
+		modScripts := findModScripts(cfg, mod)
+		if len(modScripts) > 0 {
+			fmt.Printf("    %d script(s)\n", len(modScripts))
+		}
+
+		if len(dbcFiles) == 0 && len(addonFiles) == 0 && len(modScripts) == 0 {
+			fmt.Printf("    (no changes)\n")
 			continue
 		}
 
@@ -78,11 +85,6 @@ func runModBuild(args []string) error {
 				seenAddons[key] = true
 			}
 		}
-	}
-
-	if len(allDbcFiles) == 0 && len(allAddonFiles) == 0 {
-		fmt.Println("\nNo modified files to package.")
-		return nil
 	}
 
 	// Phase 2: Build and deploy combined MPQs.
@@ -141,6 +143,19 @@ func runModBuild(args []string) error {
 		}
 	}
 
+	// Phase 4: Sync custom C++ scripts to the container.
+	totalScripts := countAllScripts(cfg)
+	scriptsChanged := false
+	if totalScripts > 0 {
+		var err error
+		scriptsChanged, err = syncScriptsToContainer(cfg)
+		if err != nil {
+			fmt.Printf("  ⚠ Error syncing custom scripts: %v\n", err)
+		} else if !scriptsChanged {
+			fmt.Printf("\n  Scripts: %d file(s) up to date in container\n", totalScripts)
+		}
+	}
+
 	label := strings.Join(modsToBuild, ", ")
 	fmt.Printf("\n=== Build Complete ===\n")
 	fmt.Printf("  Mods:     %s\n", label)
@@ -153,6 +168,9 @@ func runModBuild(args []string) error {
 	}
 	if serverDeployed > 0 {
 		fmt.Printf("  Server:        %d DBC(s) → %s\n", serverDeployed, cfg.ServerDbcDir)
+	}
+	if scriptsChanged {
+		fmt.Printf("  Scripts:       synced to container\n")
 	}
 	fmt.Println()
 
@@ -168,9 +186,22 @@ func runModBuild(args []string) error {
 			fmt.Printf("  %s\n", p)
 		}
 	}
-	if serverDeployed > 0 {
+	if scriptsChanged {
 		fmt.Println()
-		fmt.Println("⚠ Server DBC files were updated. Restart the server for changes to take effect:")
+		fmt.Println("Scripts changed — rebuilding TrinityCore...")
+		if err := serverRebuild(cfg); err != nil {
+			fmt.Printf("  ⚠ Server rebuild failed: %v\n", err)
+			fmt.Println("  You can retry manually with: mithril server rebuild")
+		}
+	}
+
+	// Phase 5: Apply pending server SQL migrations (world/auth/characters).
+	sqlApplied := applyPendingSQLMigrations(cfg, modsToBuild)
+	needsRestart := scriptsChanged || serverDeployed > 0 || sqlApplied > 0
+
+	if needsRestart {
+		fmt.Println()
+		fmt.Println("⚠ Restart the server for changes to take effect:")
 		fmt.Println("  mithril server restart")
 	}
 
@@ -343,8 +374,9 @@ func runModStatus(args []string) error {
 		modifiedAddons := findModifiedAddons(cfg, mod)
 		sqlMigrations := findMigrations(cfg, mod)
 		corePatches := findCorePatches(cfg, mod)
+		scripts := findModScripts(cfg, mod)
 
-		if len(modifiedAddons) == 0 && len(sqlMigrations) == 0 && len(corePatches) == 0 {
+		if len(modifiedAddons) == 0 && len(sqlMigrations) == 0 && len(corePatches) == 0 && len(scripts) == 0 {
 			fmt.Printf("  %s: no modifications\n", mod)
 			return
 		}
@@ -366,6 +398,9 @@ func runModStatus(args []string) error {
 				status = "applied"
 			}
 			fmt.Printf("    🔧 core [%s]: %s\n", status, p.filename)
+		}
+		for _, s := range scripts {
+			fmt.Printf("    ⚙ script: %s\n", s)
 		}
 	}
 
@@ -402,6 +437,77 @@ func runModStatus(args []string) error {
 	return nil
 }
 
+
+// applyPendingSQLMigrations applies any pending server SQL migrations (world/auth/characters)
+// for the given mods. DBC migrations are skipped here as they are handled separately.
+// Returns the number of migrations applied.
+func applyPendingSQLMigrations(cfg *Config, mods []string) int {
+	tracker, err := loadSQLTracker(cfg)
+	if err != nil {
+		fmt.Printf("  ⚠ Error loading SQL tracker: %v\n", err)
+		return 0
+	}
+
+	// Collect pending non-DBC migrations
+	var pending []migrationInfo
+	for _, mod := range mods {
+		for _, m := range findMigrations(cfg, mod) {
+			if m.database == "dbc" {
+				continue // handled by buildModDBCsFromSQL
+			}
+			if tracker.IsApplied(m.mod, m.filename) {
+				continue
+			}
+			pending = append(pending, m)
+		}
+	}
+
+	if len(pending) == 0 {
+		return 0
+	}
+
+	// Check that server is running
+	containerID, err := composeContainerID(cfg)
+	if err != nil || containerID == "" {
+		fmt.Printf("\n  ⚠ %d pending SQL migration(s) but server is not running.\n", len(pending))
+		fmt.Println("    Start the server and run: mithril mod sql apply")
+		return 0
+	}
+
+	fmt.Printf("\nApplying %d pending SQL migration(s)...\n", len(pending))
+	applied := 0
+	for _, m := range pending {
+		fmt.Printf("  Applying %s/%s → %s... ", m.mod, m.filename, m.database)
+		sqlContent, err := os.ReadFile(m.path)
+		if err != nil {
+			fmt.Printf("⚠ read error: %v\n", err)
+			continue
+		}
+		if err := execSQL(cfg, containerID, m.database, string(sqlContent)); err != nil {
+			fmt.Printf("⚠ failed: %v\n", err)
+			fmt.Println("    Stopping SQL apply to prevent out-of-order execution.")
+			break
+		}
+		tracker.Applied = append(tracker.Applied, AppliedMigration{
+			Mod:       m.mod,
+			File:      m.filename,
+			Database:  m.database,
+			AppliedAt: timeNow(),
+		})
+		fmt.Println("✓")
+		applied++
+	}
+
+	if err := saveSQLTracker(cfg, tracker); err != nil {
+		fmt.Printf("  ⚠ Error saving SQL tracker: %v\n", err)
+	}
+
+	if applied > 0 {
+		fmt.Printf("  Applied %d SQL migration(s)\n", applied)
+	}
+
+	return applied
+}
 
 // buildModDBCsFromSQL applies a mod's sql/dbc/ migrations and exports modified DBC tables.
 // Uses native MySQL driver for both migration execution and DBC export.

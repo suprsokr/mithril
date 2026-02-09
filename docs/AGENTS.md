@@ -45,7 +45,8 @@ A single mod can contain any combination of these. All live under `mithril-data/
 | Addon/UI edits | `addons/` | Client only | Client restart or `/reload` | [addons-workflow.md](addons-workflow.md) |
 | SQL migrations | `sql/<db>/` | Server only | Some changes immediate, some need restart | [sql-workflow.md](sql-workflow.md) |
 | Binary patches | `binary-patches/` | Client executable | One-time apply, survives builds | [binary-patches-workflow.md](binary-patches-workflow.md) |
-| Core patches | `core-patches/` | Server C++ code | Full rebuild (`mithril init --rebuild`) + restart | [core-patches-workflow.md](core-patches-workflow.md) |
+| Core patches | `core-patches/` | Server C++ code | `mithril server rebuild` + restart | [core-patches-workflow.md](core-patches-workflow.md) |
+| Scripts | `scripts/` | Server C++ code | `mithril server rebuild` + restart | [scripts-workflow.md](scripts-workflow.md) |
 
 ## Command Reference
 
@@ -53,7 +54,7 @@ A single mod can contain any combination of these. All live under `mithril-data/
 
 ```bash
 mithril init                    # Build Docker image, compile TrinityCore, extract maps, setup DB
-mithril init --rebuild          # Rebuild after core patches (recompile TrinityCore)
+mithril server rebuild          # Recompile TrinityCore (incremental, for core patches / scripts)
 mithril server start            # Start server containers (docker compose up -d)
 mithril server stop             # Stop server containers (docker compose down)
 mithril server restart          # Restart server containers (docker compose restart)
@@ -140,7 +141,7 @@ mithril mod core list [--mod <name>]      # List core patches
 mithril mod core apply [--mod <name>]     # Apply .patch files to TrinityCore source
 ```
 
-After applying core patches, rebuild with `mithril init --rebuild` (10-30 min), then `mithril server restart`.
+After applying core patches or scripts, rebuild with `mithril server rebuild` (incremental), then `mithril server restart`.
 
 ### Registry & Sharing
 

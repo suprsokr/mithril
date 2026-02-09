@@ -252,12 +252,7 @@ func runModInit(args []string) error {
 
 	fmt.Println()
 	fmt.Println("Next steps:")
-	fmt.Println("  mithril mod create my-mod              # Create a mod")
-	fmt.Println("  mithril mod dbc query \"SHOW TABLES\"     # List all DBC tables")
-	fmt.Println("  mithril mod dbc query \"SELECT id, spell_name_enus FROM spell LIMIT 5\"")
-	fmt.Println("  mithril mod dbc query \"SELECT ...\"      # Query DBC data with SQL")
-	fmt.Println("  mithril mod addon list                 # List all addon files")
-	fmt.Println("  mithril mod addon search \"pattern\"      # Search addon files")
+	fmt.Println("  mithril mod create my-mod")
 
 	return nil
 }
