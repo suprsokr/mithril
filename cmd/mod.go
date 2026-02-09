@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -262,17 +263,48 @@ func runModRemove(args []string) error {
 		}
 	}
 
-	// Summarize what will be cleaned up
-	fmt.Printf("Removing mod '%s'...\n", modName)
+	// Also check for addons and binary patches
+	modifiedAddons := findModifiedAddons(cfg, modName)
+	corePatches := findCorePatches(cfg, modName)
+	scripts := findModScripts(cfg, modName)
+	binaryPatches := findBinaryPatches(cfg, modName)
+
+	// Summarize what will happen
+	fmt.Printf("Removing mod '%s', will perform:\n", modName)
+	if len(modifiedAddons) > 0 {
+		fmt.Printf("  • Remove %d addon override(s)\n", len(modifiedAddons))
+	}
 	if len(appliedMigrations) > 0 {
-		fmt.Printf("  %d applied SQL migration(s)\n", len(appliedMigrations))
+		fmt.Printf("  • Roll back %d applied SQL migration(s)\n", len(appliedMigrations))
 	}
 	if len(appliedCorePatches) > 0 {
-		fmt.Printf("  %d applied core patch(es)\n", len(appliedCorePatches))
+		fmt.Printf("  • Reverse %d applied core patch(es) from TrinityCore source\n", len(appliedCorePatches))
+	}
+	if len(corePatches) > 0 {
+		unapplied := len(corePatches) - len(appliedCorePatches)
+		if unapplied > 0 {
+			fmt.Printf("  • Discard %d unapplied core patch(es)\n", unapplied)
+		}
 	}
 	if hadScripts {
-		fmt.Printf("  scripts in container\n")
+		fmt.Printf("  • Remove %d script(s) from container and rebuild server\n", len(scripts))
 	}
+	// Separate DLLs from binary patches
+	var binaryPatchFiles, dllFiles []string
+	for _, f := range binaryPatches {
+		if strings.HasSuffix(strings.ToLower(f), ".dll") {
+			dllFiles = append(dllFiles, f)
+		} else {
+			binaryPatchFiles = append(binaryPatchFiles, f)
+		}
+	}
+	if len(binaryPatchFiles) > 0 {
+		fmt.Printf("  • Restore Wow.exe (undo %d binary patch(es))\n", len(binaryPatchFiles))
+	}
+	if len(dllFiles) > 0 {
+		fmt.Printf("  • Remove %d DLL(s) from client directory\n", len(dllFiles))
+	}
+	fmt.Printf("  • Delete mod directory\n")
 
 	if !promptYesNo(fmt.Sprintf("Remove mod '%s' and undo all its changes?", modName)) {
 		fmt.Println("Cancelled.")
@@ -308,6 +340,70 @@ func runModRemove(args []string) error {
 			fmt.Println()
 			fmt.Printf("  ⚠ Server not running — cannot roll back %d SQL migration(s).\n", len(appliedMigrations))
 			fmt.Println("    The migrations will remain in the database.")
+		}
+	}
+
+	// Reverse applied core patches inside the container
+	if len(appliedCorePatches) > 0 {
+		containerID, err := composeContainerID(cfg)
+		if err == nil && containerID != "" {
+			fmt.Println()
+			fmt.Printf("Reversing %d core patch(es)...\n", len(appliedCorePatches))
+			for i := len(appliedCorePatches) - 1; i >= 0; i-- {
+				a := appliedCorePatches[i]
+				patchPath := filepath.Join(cfg.ModDir(modName), "core-patches", a.File)
+				containerPatchPath := "/tmp/" + modName + "_" + a.File
+
+				fmt.Printf("  Reversing %s... ", a.File)
+
+				// Copy patch into container
+				cpCmd := exec.Command("docker", "cp", patchPath, containerID+":"+containerPatchPath)
+				if _, err := cpCmd.CombinedOutput(); err != nil {
+					fmt.Printf("⚠ copy failed\n")
+					continue
+				}
+
+				// Reverse apply
+				reverseCmd := exec.Command("docker", "exec", "-w", "/src/TrinityCore", containerID,
+					"git", "apply", "--reverse", containerPatchPath)
+				if output, err := reverseCmd.CombinedOutput(); err != nil {
+					fmt.Printf("⚠ failed: %s\n", strings.TrimSpace(string(output)))
+				} else {
+					fmt.Println("✓")
+					needsRestart = true
+				}
+
+				// Clean up
+				exec.Command("docker", "exec", containerID, "rm", "-f", containerPatchPath).Run()
+			}
+		} else {
+			fmt.Println()
+			fmt.Printf("  ⚠ Server not running — cannot reverse %d core patch(es).\n", len(appliedCorePatches))
+			fmt.Println("    The patches will remain in the TrinityCore source.")
+		}
+	}
+
+	// Restore Wow.exe if there were binary patches
+	if len(binaryPatchFiles) > 0 {
+		if promptYesNo("Restore Wow.exe to a clean version?") {
+			if err := restoreWowExe(cfg); err != nil {
+				fmt.Printf("  ⚠ Failed to restore Wow.exe: %v\n", err)
+				fmt.Println("    You can do this manually with: mithril mod patch restore")
+			} else {
+				fmt.Println("  ✓ Wow.exe restored")
+			}
+		}
+	}
+
+	// Remove DLLs from client directory
+	for _, dll := range dllFiles {
+		dllPath := filepath.Join(cfg.ClientDir, dll)
+		if err := os.Remove(dllPath); err != nil {
+			if !os.IsNotExist(err) {
+				fmt.Printf("  ⚠ Failed to remove %s: %v\n", dll, err)
+			}
+		} else {
+			fmt.Printf("  ✓ Removed %s from client\n", dll)
 		}
 	}
 
@@ -347,19 +443,27 @@ func runModRemove(args []string) error {
 
 	fmt.Printf("\n✓ Removed mod: %s\n", modName)
 
-	// Remove scripts from container and rebuild if needed
+	// Remove scripts from container
+	scriptsChanged := false
 	if hadScripts {
 		changed, err := syncScriptsToContainer(cfg)
 		if err != nil {
 			fmt.Printf("  ⚠ Error syncing scripts: %v\n", err)
 		} else if changed {
-			fmt.Println("  Removing scripts from server...")
-			if err := serverRebuild(cfg); err != nil {
-				fmt.Printf("  ⚠ Server rebuild failed: %v\n", err)
-				fmt.Println("  You can retry manually with: mithril server rebuild")
-			} else {
-				needsRestart = true
-			}
+			scriptsChanged = true
+		}
+	}
+
+	// Rebuild if core patches were reversed or scripts changed
+	needsRebuild := scriptsChanged || len(appliedCorePatches) > 0
+	if needsRebuild {
+		fmt.Println()
+		fmt.Println("Rebuilding TrinityCore...")
+		if err := serverRebuild(cfg); err != nil {
+			fmt.Printf("  ⚠ Server rebuild failed: %v\n", err)
+			fmt.Println("  You can retry manually with: mithril server rebuild")
+		} else {
+			needsRestart = true
 		}
 	}
 

@@ -82,7 +82,7 @@ func runModCoreCreate(args []string) error {
 	return nil
 }
 
-// runModCoreRemove removes a core patch file from a mod.
+// runModCoreRemove removes a core patch file from a mod, reversing it first if applied.
 func runModCoreRemove(args []string) error {
 	modName, remaining := parseModFlag(args)
 	if len(remaining) < 1 || modName == "" {
@@ -100,6 +100,44 @@ func runModCoreRemove(args []string) error {
 		return fmt.Errorf("core patch file not found: %s", patchPath)
 	}
 
+	tracker, _ := loadCoreTracker(cfg)
+	wasApplied := tracker.IsApplied(modName, patchName)
+
+	// If the patch was applied, reverse it inside the container
+	if wasApplied {
+		containerID, err := composeContainerID(cfg)
+		if err == nil && containerID != "" {
+			fmt.Printf("Reversing %s in container... ", patchName)
+			containerPatchPath := "/tmp/" + modName + "_" + patchName
+
+			cpCmd := exec.Command("docker", "cp", patchPath, containerID+":"+containerPatchPath)
+			if _, err := cpCmd.CombinedOutput(); err != nil {
+				fmt.Printf("⚠ copy failed\n")
+			} else {
+				reverseCmd := exec.Command("docker", "exec", "-w", "/src/TrinityCore", containerID,
+					"git", "apply", "--reverse", containerPatchPath)
+				if output, err := reverseCmd.CombinedOutput(); err != nil {
+					fmt.Printf("⚠ failed: %s\n", strings.TrimSpace(string(output)))
+				} else {
+					fmt.Println("✓")
+				}
+				exec.Command("docker", "exec", containerID, "rm", "-f", containerPatchPath).Run()
+			}
+
+			// Remove from tracker
+			var kept []AppliedCorePatch
+			for _, a := range tracker.Applied {
+				if !(a.Mod == modName && a.File == patchName) {
+					kept = append(kept, a)
+				}
+			}
+			tracker.Applied = kept
+			saveCoreTracker(cfg, tracker)
+		} else {
+			fmt.Printf("  ⚠ Server not running — cannot reverse patch. It will remain in the TrinityCore source.\n")
+		}
+	}
+
 	if err := os.Remove(patchPath); err != nil {
 		return fmt.Errorf("remove core patch file: %w", err)
 	}
@@ -108,6 +146,20 @@ func runModCoreRemove(args []string) error {
 	cleanEmptyDirs(filepath.Join(cfg.ModDir(modName), "core-patches"))
 
 	fmt.Printf("✓ Removed core patch: %s\n", patchName)
+
+	if wasApplied {
+		if promptYesNo("Rebuild the server now?") {
+			if err := serverRebuild(cfg); err != nil {
+				fmt.Printf("  ⚠ Server rebuild failed: %v\n", err)
+				fmt.Println("  You can retry manually with: mithril server rebuild")
+			} else {
+				fmt.Println()
+				fmt.Println("⚠ Restart the server to load the new build:")
+				fmt.Println("  mithril server restart")
+			}
+		}
+	}
+
 	return nil
 }
 

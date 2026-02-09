@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -186,9 +187,13 @@ func runModBuild(args []string) error {
 			fmt.Printf("  %s\n", p)
 		}
 	}
-	if scriptsChanged {
+	// Phase 4c: Apply pending core patches inside the container.
+	corePatchesApplied := applyPendingCorePatches(cfg, modsToBuild)
+
+	needsRebuild := scriptsChanged || corePatchesApplied > 0
+	if needsRebuild {
 		fmt.Println()
-		fmt.Println("Scripts changed — rebuilding TrinityCore...")
+		fmt.Println("Rebuilding TrinityCore...")
 		if err := serverRebuild(cfg); err != nil {
 			fmt.Printf("  ⚠ Server rebuild failed: %v\n", err)
 			fmt.Println("  You can retry manually with: mithril server rebuild")
@@ -197,7 +202,7 @@ func runModBuild(args []string) error {
 
 	// Phase 5: Apply pending server SQL migrations (world/auth/characters).
 	sqlApplied := applyPendingSQLMigrations(cfg, modsToBuild)
-	needsRestart := scriptsChanged || serverDeployed > 0 || sqlApplied > 0
+	needsRestart := needsRebuild || serverDeployed > 0 || sqlApplied > 0
 
 	if needsRestart {
 		fmt.Println()
@@ -437,6 +442,94 @@ func runModStatus(args []string) error {
 	return nil
 }
 
+
+// applyPendingCorePatches applies pending core patches from all mods inside the
+// running container via docker exec git apply. Returns the number applied.
+func applyPendingCorePatches(cfg *Config, mods []string) int {
+	tracker, err := loadCoreTracker(cfg)
+	if err != nil {
+		fmt.Printf("  ⚠ Error loading core tracker: %v\n", err)
+		return 0
+	}
+
+	// Collect pending patches
+	var pending []corePatchInfo
+	for _, mod := range mods {
+		for _, p := range findCorePatches(cfg, mod) {
+			if tracker.IsApplied(p.mod, p.filename) {
+				continue
+			}
+			pending = append(pending, p)
+		}
+	}
+
+	if len(pending) == 0 {
+		return 0
+	}
+
+	containerID, err := composeContainerID(cfg)
+	if err != nil || containerID == "" {
+		fmt.Printf("\n  ⚠ %d pending core patch(es) but server is not running.\n", len(pending))
+		fmt.Println("    Start the server and run: mithril mod core apply")
+		return 0
+	}
+
+	fmt.Printf("\nApplying %d pending core patch(es)...\n", len(pending))
+	applied := 0
+	for _, p := range pending {
+		fmt.Printf("  Applying %s/%s... ", p.mod, p.filename)
+
+		// Copy patch file into the container
+		containerPatchPath := "/tmp/" + p.mod + "_" + p.filename
+		cpCmd := exec.Command("docker", "cp", p.path, containerID+":"+containerPatchPath)
+		if output, err := cpCmd.CombinedOutput(); err != nil {
+			fmt.Printf("⚠ copy failed: %s\n", strings.TrimSpace(string(output)))
+			continue
+		}
+
+		// Check if patch applies cleanly
+		checkCmd := exec.Command("docker", "exec", "-w", "/src/TrinityCore", containerID,
+			"git", "apply", "--check", containerPatchPath)
+		if checkOutput, err := checkCmd.CombinedOutput(); err != nil {
+			fmt.Printf("⚠ does not apply cleanly: %s\n", strings.TrimSpace(string(checkOutput)))
+			// Clean up
+			exec.Command("docker", "exec", containerID, "rm", "-f", containerPatchPath).Run()
+			fmt.Println("    Stopping to prevent partial application.")
+			break
+		}
+
+		// Apply the patch
+		applyCmd := exec.Command("docker", "exec", "-w", "/src/TrinityCore", containerID,
+			"git", "apply", containerPatchPath)
+		if output, err := applyCmd.CombinedOutput(); err != nil {
+			fmt.Printf("⚠ failed: %s\n", strings.TrimSpace(string(output)))
+			exec.Command("docker", "exec", containerID, "rm", "-f", containerPatchPath).Run()
+			fmt.Println("    Stopping to prevent partial application.")
+			break
+		}
+
+		// Clean up patch file from container
+		exec.Command("docker", "exec", containerID, "rm", "-f", containerPatchPath).Run()
+
+		tracker.Applied = append(tracker.Applied, AppliedCorePatch{
+			Mod:       p.mod,
+			File:      p.filename,
+			AppliedAt: timeNow(),
+		})
+		fmt.Println("✓")
+		applied++
+	}
+
+	if err := saveCoreTracker(cfg, tracker); err != nil {
+		fmt.Printf("  ⚠ Error saving core tracker: %v\n", err)
+	}
+
+	if applied > 0 {
+		fmt.Printf("  Applied %d core patch(es)\n", applied)
+	}
+
+	return applied
+}
 
 // applyPendingSQLMigrations applies any pending server SQL migrations (world/auth/characters)
 // for the given mods. DBC migrations are skipped here as they are handled separately.

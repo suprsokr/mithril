@@ -335,8 +335,22 @@ func runModPatchApply(args []string) error {
 		fmt.Printf("  ⚠ Could not save tracker: %v\n", err)
 	}
 
-	if applied > 0 {
-		fmt.Printf("\nApplied %d new patch(es) to Wow.exe\n", applied)
+	// Copy DLL files from the mod's binary-patches/ directory
+	dllsCopied := 0
+	if modName != "" {
+		dc, err := deployModDLLs(cfg, modName, tracker, trackerPath)
+		if err != nil {
+			fmt.Printf("  ⚠ DLL deploy error: %v\n", err)
+		}
+		dllsCopied += dc
+	}
+
+	if applied > 0 || dllsCopied > 0 {
+		fmt.Printf("\nApplied %d new patch(es)", applied)
+		if dllsCopied > 0 {
+			fmt.Printf(", copied %d DLL(s)", dllsCopied)
+		}
+		fmt.Println(" to client")
 	} else {
 		fmt.Println("\nNo new patches to apply")
 	}
@@ -377,7 +391,17 @@ func runModPatchStatus(args []string) error {
 
 func runModPatchRestore(args []string) error {
 	cfg := DefaultConfig()
+	if err := restoreWowExe(cfg); err != nil {
+		return err
+	}
+	fmt.Println("✓ Restored Wow.exe from clean backup")
+	fmt.Println("  All binary patches have been cleared")
+	fmt.Println("  Run 'mithril mod patch apply ...' to reapply patches")
+	return nil
+}
 
+// restoreWowExe restores Wow.exe from the clean backup and clears the patch tracker.
+func restoreWowExe(cfg *Config) error {
 	wowExePath := filepath.Join(cfg.ClientDir, "Wow.exe")
 	if err := patcher.RestoreFromBackup(wowExePath); err != nil {
 		return fmt.Errorf("restore: %w", err)
@@ -387,12 +411,8 @@ func runModPatchRestore(args []string) error {
 	trackerPath := filepath.Join(cfg.ModulesDir, "binary_patches_applied.json")
 	tracker := &patcher.Tracker{}
 	if err := patcher.SaveTracker(trackerPath, tracker); err != nil {
-		fmt.Printf("  ⚠ Could not clear tracker: %v\n", err)
+		return fmt.Errorf("clear tracker: %w", err)
 	}
-
-	fmt.Println("✓ Restored Wow.exe from clean backup")
-	fmt.Println("  All binary patches have been cleared")
-	fmt.Println("  Run 'mithril mod patch apply ...' to reapply patches")
 
 	return nil
 }
@@ -409,6 +429,74 @@ func resolvePatch(cfg *Config, name string) *patcher.PatchFile {
 		}
 	}
 	return nil
+}
+
+// deployModDLLs copies any .dll files from a mod's binary-patches/ directory
+// to the client directory (next to Wow.exe) and tracks them in the binary patch tracker.
+func deployModDLLs(cfg *Config, modName string, tracker *patcher.Tracker, trackerPath string) (int, error) {
+	patchDir := filepath.Join(cfg.ModDir(modName), "binary-patches")
+	entries, err := os.ReadDir(patchDir)
+	if err != nil {
+		return 0, nil // no binary-patches dir
+	}
+
+	copied := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(strings.ToLower(name), ".dll") {
+			continue
+		}
+
+		trackerName := modName + "/binary-patches/" + name
+
+		// Check if already deployed via checksum
+		srcPath := filepath.Join(patchDir, name)
+		dstPath := filepath.Join(cfg.ClientDir, name)
+		srcHash := fileChecksum(srcPath)
+		dstHash := fileChecksum(dstPath)
+
+		if tracker.IsApplied(trackerName) && srcHash == dstHash {
+			continue // already up to date
+		}
+
+		if err := copyFile(srcPath, dstPath); err != nil {
+			return copied, fmt.Errorf("copy %s: %w", name, err)
+		}
+		fmt.Printf("  ✓ %s → %s\n", name, cfg.ClientDir)
+
+		if !tracker.IsApplied(trackerName) {
+			tracker.MarkApplied(trackerName, timeNow())
+		}
+		copied++
+	}
+
+	if copied > 0 {
+		if err := patcher.SaveTracker(trackerPath, tracker); err != nil {
+			return copied, fmt.Errorf("save tracker: %w", err)
+		}
+	}
+
+	return copied, nil
+}
+
+// findBinaryPatches returns the filenames of all .json and .dll files in a mod's binary-patches/ directory.
+func findBinaryPatches(cfg *Config, modName string) []string {
+	patchDir := filepath.Join(cfg.ModDir(modName), "binary-patches")
+	entries, err := os.ReadDir(patchDir)
+	if err != nil {
+		return nil
+	}
+	var patches []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		patches = append(patches, e.Name())
+	}
+	return patches
 }
 
 // resolveUserPatch resolves a user-provided patch argument to a name and PatchFile.

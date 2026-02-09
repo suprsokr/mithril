@@ -121,6 +121,7 @@ cmake ../ \
     -DWITH_WARNINGS=0 \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
+    -DUSE_COREPCH=0 \
     -DUSE_SCRIPTPCH=0
 echo "=== Compiling (incremental) ==="
 make -j $(nproc)
