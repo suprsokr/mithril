@@ -17,7 +17,6 @@ type Manifest struct {
 	ExtractedAt string   `json:"extracted_at"`
 	ClientData  string   `json:"client_data"`
 	Locale      string   `json:"locale"`
-	MPQChain    []string `json:"mpq_chain"`
 	// BuildOrder controls which mods are built and in what order.
 	// Mods listed first have lowest priority — later mods override earlier ones
 	// when they modify the same file. Mods on disk but not listed here are
@@ -118,7 +117,6 @@ func runModInit(args []string) error {
 		ExtractedAt: timeNow(),
 		ClientData:  clientDataDir,
 		Locale:      locale,
-		MPQChain:    mpqFiles,
 		BuildOrder:  existingBuildOrder,
 	}
 
