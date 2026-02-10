@@ -1,0 +1,38 @@
+{
+  "file": "Pvpdifficulty.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "map_id",
+      "type": "int32"
+    },
+    {
+      "name": "bracket_id",
+      "type": "int32"
+    },
+    {
+      "name": "min_level",
+      "type": "int32"
+    },
+    {
+      "name": "max_level",
+      "type": "int32"
+    },
+    {
+      "name": "difficulty",
+      "type": "int32"
+    }
+  ]
+}

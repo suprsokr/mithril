@@ -1,0 +1,110 @@
+{
+  "file": "Scalingstatvalues.dbc",
+  "primaryKeys": [
+    "level"
+  ],
+  "sortOrder": [
+    {
+      "name": "level",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "charlevel",
+      "type": "uint32"
+    },
+    {
+      "name": "shoulder_budget",
+      "type": "uint32"
+    },
+    {
+      "name": "trinket_budget",
+      "type": "uint32"
+    },
+    {
+      "name": "weapon_budget_1h",
+      "type": "uint32"
+    },
+    {
+      "name": "ranged_budget",
+      "type": "uint32"
+    },
+    {
+      "name": "cloth_shoulder_armor",
+      "type": "uint32"
+    },
+    {
+      "name": "leather_shoulder_armor",
+      "type": "uint32"
+    },
+    {
+      "name": "mail_shoulder_armor",
+      "type": "uint32"
+    },
+    {
+      "name": "plate_shoulder_armor",
+      "type": "uint32"
+    },
+    {
+      "name": "weapon_dps_1h",
+      "type": "uint32"
+    },
+    {
+      "name": "weapon_dps_2h",
+      "type": "uint32"
+    },
+    {
+      "name": "spellcaster_dps_1h",
+      "type": "uint32"
+    },
+    {
+      "name": "spellcaster_dps_2h",
+      "type": "uint32"
+    },
+    {
+      "name": "ranged_dps",
+      "type": "uint32"
+    },
+    {
+      "name": "wand_dps",
+      "type": "uint32"
+    },
+    {
+      "name": "spell_power",
+      "type": "uint32"
+    },
+    {
+      "name": "primary_budget",
+      "type": "uint32"
+    },
+    {
+      "name": "tertiary_budget",
+      "type": "uint32"
+    },
+    {
+      "name": "cloth_cloak_armor",
+      "type": "uint32"
+    },
+    {
+      "name": "cloth_chest_armor",
+      "type": "uint32"
+    },
+    {
+      "name": "leather_chest_armor",
+      "type": "uint32"
+    },
+    {
+      "name": "mail_chest_armor",
+      "type": "uint32"
+    },
+    {
+      "name": "plate_chest_armor",
+      "type": "uint32"
+    }
+  ]
+}

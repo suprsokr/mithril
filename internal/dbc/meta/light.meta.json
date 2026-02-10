@@ -1,0 +1,74 @@
+{
+  "file": "Light.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "map_id",
+      "type": "int32"
+    },
+    {
+      "name": "position_x",
+      "type": "float"
+    },
+    {
+      "name": "position_y",
+      "type": "float"
+    },
+    {
+      "name": "position_z",
+      "type": "float"
+    },
+    {
+      "name": "falloff_start_1",
+      "type": "uint32"
+    },
+    {
+      "name": "falloff_start_2",
+      "type": "uint32"
+    },
+    {
+      "name": "falloff_start_3",
+      "type": "uint32"
+    },
+    {
+      "name": "falloff_start_4",
+      "type": "uint32"
+    },
+    {
+      "name": "falloff_start_5",
+      "type": "uint32"
+    },
+    {
+      "name": "falloff_end_1",
+      "type": "uint32"
+    },
+    {
+      "name": "falloff_end_2",
+      "type": "uint32"
+    },
+    {
+      "name": "falloff_end_3",
+      "type": "uint32"
+    },
+    {
+      "name": "falloff_end_4",
+      "type": "uint32"
+    },
+    {
+      "name": "falloff_end_5",
+      "type": "uint32"
+    }
+  ]
+}

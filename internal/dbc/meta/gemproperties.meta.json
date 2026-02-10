@@ -1,0 +1,34 @@
+{
+  "file": "Gemproperties.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "enchant_id",
+      "type": "int32"
+    },
+    {
+      "name": "max_count_inv",
+      "type": "uint32"
+    },
+    {
+      "name": "max_count_item",
+      "type": "uint32"
+    },
+    {
+      "name": "type",
+      "type": "int32"
+    }
+  ]
+}

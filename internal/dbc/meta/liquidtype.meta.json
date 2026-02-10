@@ -1,0 +1,94 @@
+{
+  "file": "Liquidtype.dbc",
+  "primaryKeys": [
+    "field_0"
+  ],
+  "sortOrder": [
+    {
+      "name": "field_0",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "name",
+      "type": "string"
+    },
+    {
+      "name": "flags",
+      "type": "uint32"
+    },
+    {
+      "name": "sound_bank",
+      "type": "uint32"
+    },
+    {
+      "name": "sound_id",
+      "type": "uint32"
+    },
+    {
+      "name": "spell_id",
+      "type": "uint32"
+    },
+    {
+      "name": "max_darken_depth",
+      "type": "float"
+    },
+    {
+      "name": "fog_darken_intensity",
+      "type": "float"
+    },
+    {
+      "name": "amb_darken_intensity",
+      "type": "float"
+    },
+    {
+      "name": "dir_darken_intensity",
+      "type": "float"
+    },
+    {
+      "name": "light_id",
+      "type": "uint32"
+    },
+    {
+      "name": "particle_scale",
+      "type": "float"
+    },
+    {
+      "name": "particle_movement",
+      "type": "uint32"
+    },
+    {
+      "name": "particle_tex_slots",
+      "type": "uint32"
+    },
+    {
+      "name": "material_id",
+      "type": "uint32"
+    },
+    {
+      "name": "texture",
+      "type": "string",
+      "count": 6
+    },
+    {
+      "name": "color",
+      "type": "uint32",
+      "count": 2
+    },
+    {
+      "name": "unk_float",
+      "type": "float",
+      "count": 18
+    },
+    {
+      "name": "unk_int",
+      "type": "uint32",
+      "count": 4
+    }
+  ]
+}

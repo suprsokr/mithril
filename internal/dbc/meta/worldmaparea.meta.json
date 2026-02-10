@@ -1,0 +1,58 @@
+{
+  "file": "Worldmaparea.dbc",
+  "primaryKeys": [
+    "area_id"
+  ],
+  "sortOrder": [
+    {
+      "name": "area_id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "map_id",
+      "type": "int32"
+    },
+    {
+      "name": "area_id",
+      "type": "uint32"
+    },
+    {
+      "name": "name",
+      "type": "uint32"
+    },
+    {
+      "name": "loc_left",
+      "type": "float"
+    },
+    {
+      "name": "loc_right",
+      "type": "float"
+    },
+    {
+      "name": "loc_top",
+      "type": "float"
+    },
+    {
+      "name": "loc_bottom",
+      "type": "float"
+    },
+    {
+      "name": "display_map_id",
+      "type": "int32"
+    },
+    {
+      "name": "default_dungeon_floor",
+      "type": "uint32"
+    },
+    {
+      "name": "parent_world_map_id",
+      "type": "uint32"
+    }
+  ]
+}

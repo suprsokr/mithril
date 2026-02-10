@@ -1,0 +1,46 @@
+{
+  "file": "Itemrandomsuffix.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "name",
+      "type": "Loc"
+    },
+    {
+      "name": "internal_name",
+      "type": "string"
+    },
+    {
+      "name": "enchantment",
+      "type": "uint32",
+      "count": 3
+    },
+    {
+      "name": "unused_enchantment",
+      "type": "uint32",
+      "count": 2
+    },
+    {
+      "name": "allocation_pct",
+      "type": "uint32",
+      "count": 3
+    },
+    {
+      "name": "unused_allocation_pct",
+      "type": "uint32",
+      "count": 2
+    }
+  ]
+}

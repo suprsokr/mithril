@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -121,8 +122,8 @@ Commands:
                             Remove a migration (forward + rollback files)
   list [--mod <mod>]        List SQL migrations and their status
   apply [--mod <mod>]       Apply pending SQL migrations
-  rollback --mod <mod> [<migration>] [--reapply]
-                            Roll back a migration using its .rollback.sql
+  rollback --mod <mod> [<migration>] [--reapply] [--steps N]
+                            Roll back migration(s) using their .rollback.sql
   status [--mod <mod>]      Show migration status
 
 Databases:
@@ -142,8 +143,12 @@ Rollback:
   Roll back a specific migration:
     mithril mod sql rollback --mod my-mod 001_enable_flying
 
-  Roll back and immediately re-apply the forward migration:
+  Roll back the last N migrations (in reverse order):
+    mithril mod sql rollback --mod my-mod --steps 3
+
+  Roll back and immediately re-apply the forward migration(s):
     mithril mod sql rollback --mod my-mod --reapply
+    mithril mod sql rollback --mod my-mod --steps 6 --reapply
     mithril mod sql rollback --mod my-mod 001_enable_flying --reapply
 
 Examples:
@@ -401,20 +406,39 @@ func runModSQLList(args []string) error {
 func runModSQLRollback(args []string) error {
 	modName, remaining := parseModFlag(args)
 	if modName == "" {
-		return fmt.Errorf("usage: mithril mod sql rollback --mod <mod_name> [<migration>] [--reapply]")
+		return fmt.Errorf("usage: mithril mod sql rollback --mod <mod_name> [<migration>] [--reapply] [--steps N]")
 	}
 
 	cfg := DefaultConfig()
 
-	// Parse --reapply flag and optional migration name
+	// Parse flags: --reapply, --steps N, and optional migration name
 	reapply := false
+	steps := 0
 	var targetMigration string
-	for _, a := range remaining {
-		if a == "--reapply" {
+	for i := 0; i < len(remaining); i++ {
+		switch remaining[i] {
+		case "--reapply":
 			reapply = true
-		} else if !strings.HasPrefix(a, "--") {
-			targetMigration = a
+		case "--steps":
+			if i+1 >= len(remaining) {
+				return fmt.Errorf("--steps requires a number")
+			}
+			i++
+			n, err := strconv.Atoi(remaining[i])
+			if err != nil || n < 1 {
+				return fmt.Errorf("--steps must be a positive integer, got '%s'", remaining[i])
+			}
+			steps = n
+		default:
+			if !strings.HasPrefix(remaining[i], "--") {
+				targetMigration = remaining[i]
+			}
 		}
+	}
+
+	// --steps and a specific migration name are mutually exclusive
+	if steps > 0 && targetMigration != "" {
+		return fmt.Errorf("cannot use --steps with a specific migration name")
 	}
 
 	tracker, err := loadSQLTracker(cfg)
@@ -436,15 +460,15 @@ func runModSQLRollback(args []string) error {
 		return nil
 	}
 
-	// Determine which migration to roll back
-	var target migrationInfo
+	// Determine which migrations to roll back
+	var targets []migrationInfo
 	if targetMigration != "" {
 		// Find by name (with or without .sql extension, with or without number prefix)
 		found := false
 		for _, m := range appliedMigrations {
 			name := strings.TrimSuffix(m.filename, ".sql")
 			if m.filename == targetMigration || name == targetMigration || m.filename == targetMigration+".sql" {
-				target = m
+				targets = []migrationInfo{m}
 				found = true
 				break
 			}
@@ -452,63 +476,83 @@ func runModSQLRollback(args []string) error {
 		if !found {
 			return fmt.Errorf("migration '%s' not found or not applied for mod '%s'", targetMigration, modName)
 		}
+	} else if steps > 0 {
+		// Roll back the last N migrations (in reverse order)
+		if steps > len(appliedMigrations) {
+			steps = len(appliedMigrations)
+		}
+		for i := len(appliedMigrations) - 1; i >= len(appliedMigrations)-steps; i-- {
+			targets = append(targets, appliedMigrations[i])
+		}
 	} else {
 		// Default: most recent applied migration
-		target = appliedMigrations[len(appliedMigrations)-1]
+		targets = []migrationInfo{appliedMigrations[len(appliedMigrations)-1]}
 	}
 
-	// Find the rollback file
-	rollbackPath := strings.TrimSuffix(target.path, ".sql") + ".rollback.sql"
-	if _, err := os.Stat(rollbackPath); os.IsNotExist(err) {
-		return fmt.Errorf("rollback file not found: %s", rollbackPath)
-	}
+	// Roll back all targets (already in reverse order for --steps)
+	hasDBCMigration := false
+	for _, target := range targets {
+		if target.database == "dbc" {
+			hasDBCMigration = true
+		}
 
-	// Run rollback
-	fmt.Printf("Rolling back %s/%s → %s...\n", target.mod, target.filename, target.database)
-	sqlContent, err := os.ReadFile(rollbackPath)
-	if err != nil {
-		return fmt.Errorf("read rollback file: %w", err)
-	}
-	if err := runSQL(cfg, target.database, string(sqlContent)); err != nil {
-		return fmt.Errorf("execute rollback: %w", err)
-	}
+		// Find the rollback file
+		rollbackPath := strings.TrimSuffix(target.path, ".sql") + ".rollback.sql"
+		if _, err := os.Stat(rollbackPath); os.IsNotExist(err) {
+			return fmt.Errorf("rollback file not found: %s", rollbackPath)
+		}
 
-	// Remove from tracker
-	tracker.Unapply(target.mod, target.filename)
-	if err := saveSQLTracker(cfg, tracker); err != nil {
-		return fmt.Errorf("save tracker: %w", err)
-	}
-
-	fmt.Printf("  ✓ Rolled back %s\n", target.filename)
-
-	// Re-apply if requested
-	if reapply {
-		fmt.Printf("\nRe-applying %s/%s → %s...\n", target.mod, target.filename, target.database)
-		sqlContent, err := os.ReadFile(target.path)
+		// Run rollback
+		fmt.Printf("Rolling back %s/%s → %s...\n", target.mod, target.filename, target.database)
+		sqlContent, err := os.ReadFile(rollbackPath)
 		if err != nil {
-			return fmt.Errorf("read migration file: %w", err)
+			return fmt.Errorf("read rollback file: %w", err)
 		}
-
 		if err := runSQL(cfg, target.database, string(sqlContent)); err != nil {
-			return fmt.Errorf("re-apply migration: %w", err)
+			return fmt.Errorf("execute rollback of %s: %w", target.filename, err)
 		}
 
-		tracker.Applied = append(tracker.Applied, AppliedMigration{
-			Mod:       target.mod,
-			File:      target.filename,
-			Database:  target.database,
-			AppliedAt: timeNow(),
-		})
+		// Remove from tracker
+		tracker.Unapply(target.mod, target.filename)
 		if err := saveSQLTracker(cfg, tracker); err != nil {
 			return fmt.Errorf("save tracker: %w", err)
 		}
 
-		fmt.Printf("  ✓ Re-applied %s\n", target.filename)
+		fmt.Printf("  ✓ Rolled back %s\n", target.filename)
 	}
 
-	if target.database == "dbc" && reapply {
+	// Re-apply if requested (in forward order, i.e., reverse of how we rolled back)
+	if reapply {
+		fmt.Println()
+		for i := len(targets) - 1; i >= 0; i-- {
+			target := targets[i]
+			fmt.Printf("Re-applying %s/%s → %s...\n", target.mod, target.filename, target.database)
+			sqlContent, err := os.ReadFile(target.path)
+			if err != nil {
+				return fmt.Errorf("read migration file: %w", err)
+			}
+
+			if err := runSQL(cfg, target.database, string(sqlContent)); err != nil {
+				return fmt.Errorf("re-apply migration %s: %w", target.filename, err)
+			}
+
+			tracker.Applied = append(tracker.Applied, AppliedMigration{
+				Mod:       target.mod,
+				File:      target.filename,
+				Database:  target.database,
+				AppliedAt: timeNow(),
+			})
+			if err := saveSQLTracker(cfg, tracker); err != nil {
+				return fmt.Errorf("save tracker: %w", err)
+			}
+
+			fmt.Printf("  ✓ Re-applied %s\n", target.filename)
+		}
+	}
+
+	if hasDBCMigration && reapply {
 		fmt.Println("\nRun 'mithril mod build' to export the updated DBC and rebuild the patch.")
-	} else if target.database == "dbc" {
+	} else if hasDBCMigration {
 		fmt.Println("\nRun 'mithril mod build' to export the updated DBC.")
 	} else {
 		fmt.Println("\nYou may need to restart the server:")

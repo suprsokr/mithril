@@ -1,0 +1,16 @@
+{
+  "file": "SpellItemEnchantmentCondition.dbc",
+  "primaryKeys": ["id"],
+  "sortOrder": [
+    {"name": "id", "direction": "ASC"}
+  ],
+  "fields": [
+    {"name": "id", "type": "uint32"},
+    {"name": "lt_operand_type", "type": "uint8", "count": 5},
+    {"name": "lt_operand", "type": "uint32", "count": 5},
+    {"name": "operator", "type": "uint8", "count": 5},
+    {"name": "rt_operand_type", "type": "uint8", "count": 5},
+    {"name": "rt_operand", "type": "uint32", "count": 5},
+    {"name": "logic", "type": "uint8", "count": 5}
+  ]
+}

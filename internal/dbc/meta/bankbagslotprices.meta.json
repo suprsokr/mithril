@@ -1,0 +1,22 @@
+{
+  "file": "Bankbagslotprices.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "cost",
+      "type": "int32"
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "file": "Spellitemenchantment.dbc",
+  "primaryKeys": [
+    "field_0"
+  ],
+  "sortOrder": [
+    {
+      "name": "field_0",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "charges",
+      "type": "uint32"
+    },
+    {
+      "name": "effect_type",
+      "type": "uint32",
+      "count": 3
+    },
+    {
+      "name": "effect_points_min",
+      "type": "int32",
+      "count": 3
+    },
+    {
+      "name": "effect_arg",
+      "type": "uint32",
+      "count": 3
+    },
+    {
+      "name": "effect_id",
+      "type": "uint32",
+      "count": 3
+    },
+    {
+      "name": "name",
+      "type": "Loc"
+    },
+    {
+      "name": "item_visual",
+      "type": "uint32"
+    },
+    {
+      "name": "flags",
+      "type": "uint32"
+    },
+    {
+      "name": "src_item_id",
+      "type": "uint32"
+    },
+    {
+      "name": "condition_id",
+      "type": "uint32"
+    },
+    {
+      "name": "required_skill_id",
+      "type": "uint32"
+    },
+    {
+      "name": "required_skill_rank",
+      "type": "uint32"
+    },
+    {
+      "name": "min_level",
+      "type": "uint32"
+    }
+  ]
+}

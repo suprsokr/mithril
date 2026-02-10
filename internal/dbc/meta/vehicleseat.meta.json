@@ -1,0 +1,246 @@
+{
+  "file": "Vehicleseat.dbc",
+  "primaryKeys": [
+    "field_0"
+  ],
+  "sortOrder": [
+    {
+      "name": "field_0",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "flags",
+      "type": "uint32"
+    },
+    {
+      "name": "attachment_id",
+      "type": "int32"
+    },
+    {
+      "name": "attachment_offset_x",
+      "type": "float"
+    },
+    {
+      "name": "attachment_offset_y",
+      "type": "float"
+    },
+    {
+      "name": "attachment_offset_z",
+      "type": "float"
+    },
+    {
+      "name": "enter_pre_delay",
+      "type": "float"
+    },
+    {
+      "name": "enter_speed",
+      "type": "float"
+    },
+    {
+      "name": "enter_gravity",
+      "type": "float"
+    },
+    {
+      "name": "enter_min_duration",
+      "type": "float"
+    },
+    {
+      "name": "enter_max_duration",
+      "type": "float"
+    },
+    {
+      "name": "enter_min_arc_height",
+      "type": "float"
+    },
+    {
+      "name": "enter_max_arc_height",
+      "type": "float"
+    },
+    {
+      "name": "enter_anim_start",
+      "type": "int32"
+    },
+    {
+      "name": "enter_anim_loop",
+      "type": "int32"
+    },
+    {
+      "name": "ride_anim_start",
+      "type": "int32"
+    },
+    {
+      "name": "ride_anim_loop",
+      "type": "int32"
+    },
+    {
+      "name": "ride_upper_anim_start",
+      "type": "int32"
+    },
+    {
+      "name": "ride_upper_anim_loop",
+      "type": "int32"
+    },
+    {
+      "name": "exit_pre_delay",
+      "type": "float"
+    },
+    {
+      "name": "exit_speed",
+      "type": "float"
+    },
+    {
+      "name": "exit_gravity",
+      "type": "float"
+    },
+    {
+      "name": "exit_min_duration",
+      "type": "float"
+    },
+    {
+      "name": "exit_max_duration",
+      "type": "float"
+    },
+    {
+      "name": "exit_min_arc_height",
+      "type": "float"
+    },
+    {
+      "name": "exit_max_arc_height",
+      "type": "float"
+    },
+    {
+      "name": "exit_anim_start",
+      "type": "int32"
+    },
+    {
+      "name": "exit_anim_loop",
+      "type": "int32"
+    },
+    {
+      "name": "exit_anim_end",
+      "type": "int32"
+    },
+    {
+      "name": "passenger_yaw",
+      "type": "float"
+    },
+    {
+      "name": "passenger_pitch",
+      "type": "float"
+    },
+    {
+      "name": "passenger_roll",
+      "type": "float"
+    },
+    {
+      "name": "passenger_attachment_id",
+      "type": "int32"
+    },
+    {
+      "name": "vehicle_enter_anim",
+      "type": "int32"
+    },
+    {
+      "name": "vehicle_exit_anim",
+      "type": "int32"
+    },
+    {
+      "name": "vehicle_ride_anim_loop",
+      "type": "int32"
+    },
+    {
+      "name": "vehicle_enter_anim_bone",
+      "type": "int32"
+    },
+    {
+      "name": "vehicle_exit_anim_bone",
+      "type": "int32"
+    },
+    {
+      "name": "vehicle_ride_anim_loop_bone",
+      "type": "int32"
+    },
+    {
+      "name": "vehicle_enter_anim_delay",
+      "type": "float"
+    },
+    {
+      "name": "vehicle_exit_anim_delay",
+      "type": "float"
+    },
+    {
+      "name": "vehicle_ability_display",
+      "type": "uint32"
+    },
+    {
+      "name": "enter_ui_sound_id",
+      "type": "uint32"
+    },
+    {
+      "name": "exit_ui_sound_id",
+      "type": "uint32"
+    },
+    {
+      "name": "ui_skin",
+      "type": "int32"
+    },
+    {
+      "name": "flags_b",
+      "type": "uint32"
+    },
+    {
+      "name": "camera_entering_delay",
+      "type": "float"
+    },
+    {
+      "name": "camera_entering_duration",
+      "type": "float"
+    },
+    {
+      "name": "camera_exiting_delay",
+      "type": "float"
+    },
+    {
+      "name": "camera_exiting_duration",
+      "type": "float"
+    },
+    {
+      "name": "camera_offset_x",
+      "type": "float"
+    },
+    {
+      "name": "camera_offset_y",
+      "type": "float"
+    },
+    {
+      "name": "camera_offset_z",
+      "type": "float"
+    },
+    {
+      "name": "camera_pos_chase_rate",
+      "type": "float"
+    },
+    {
+      "name": "camera_facing_chase_rate",
+      "type": "float"
+    },
+    {
+      "name": "camera_entering_zoom",
+      "type": "float"
+    },
+    {
+      "name": "camera_seat_zoom_min",
+      "type": "float"
+    },
+    {
+      "name": "camera_seat_zoom_max",
+      "type": "float"
+    }
+  ]
+}

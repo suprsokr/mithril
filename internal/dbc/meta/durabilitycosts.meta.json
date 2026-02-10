@@ -1,0 +1,134 @@
+{
+  "file": "Durabilitycosts.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "weapon_subclass_1",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_2",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_3",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_4",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_5",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_6",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_7",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_8",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_9",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_10",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_11",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_12",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_13",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_14",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_15",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_16",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_17",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_18",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_19",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_20",
+      "type": "int32"
+    },
+    {
+      "name": "weapon_subclass_21",
+      "type": "int32"
+    },
+    {
+      "name": "armor_subclass_1",
+      "type": "int32"
+    },
+    {
+      "name": "armor_subclass_2",
+      "type": "int32"
+    },
+    {
+      "name": "armor_subclass_3",
+      "type": "int32"
+    },
+    {
+      "name": "armor_subclass_4",
+      "type": "int32"
+    },
+    {
+      "name": "armor_subclass_5",
+      "type": "int32"
+    },
+    {
+      "name": "armor_subclass_6",
+      "type": "int32"
+    },
+    {
+      "name": "armor_subclass_7",
+      "type": "int32"
+    },
+    {
+      "name": "armor_subclass_8",
+      "type": "int32"
+    }
+  ]
+}

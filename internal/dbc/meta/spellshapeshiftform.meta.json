@@ -1,0 +1,52 @@
+{
+  "file": "Spellshapeshiftform.dbc",
+  "primaryKeys": [
+    "field_0"
+  ],
+  "sortOrder": [
+    {
+      "name": "field_0",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "button_position",
+      "type": "uint32"
+    },
+    {
+      "name": "name",
+      "type": "Loc"
+    },
+    {
+      "name": "flags",
+      "type": "uint32"
+    },
+    {
+      "name": "creature_type",
+      "type": "int32"
+    },
+    {
+      "name": "attack_icon_id",
+      "type": "uint32"
+    },
+    {
+      "name": "combat_round_time",
+      "type": "uint32"
+    },
+    {
+      "name": "creature_display_id",
+      "type": "uint32",
+      "count": 4
+    },
+    {
+      "name": "preset_spell_id",
+      "type": "uint32",
+      "count": 8
+    }
+  ]
+}

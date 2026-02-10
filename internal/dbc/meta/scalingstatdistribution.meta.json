@@ -1,0 +1,102 @@
+{
+  "file": "Scalingstatdistribution.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "stat_mod_1",
+      "type": "int32"
+    },
+    {
+      "name": "stat_mod_2",
+      "type": "int32"
+    },
+    {
+      "name": "stat_mod_3",
+      "type": "int32"
+    },
+    {
+      "name": "stat_mod_4",
+      "type": "int32"
+    },
+    {
+      "name": "stat_mod_5",
+      "type": "int32"
+    },
+    {
+      "name": "stat_mod_6",
+      "type": "int32"
+    },
+    {
+      "name": "stat_mod_7",
+      "type": "int32"
+    },
+    {
+      "name": "stat_mod_8",
+      "type": "int32"
+    },
+    {
+      "name": "stat_mod_9",
+      "type": "int32"
+    },
+    {
+      "name": "stat_mod_10",
+      "type": "int32"
+    },
+    {
+      "name": "modifier_1",
+      "type": "int32"
+    },
+    {
+      "name": "modifier_2",
+      "type": "int32"
+    },
+    {
+      "name": "modifier_3",
+      "type": "int32"
+    },
+    {
+      "name": "modifier_4",
+      "type": "int32"
+    },
+    {
+      "name": "modifier_5",
+      "type": "int32"
+    },
+    {
+      "name": "modifier_6",
+      "type": "int32"
+    },
+    {
+      "name": "modifier_7",
+      "type": "int32"
+    },
+    {
+      "name": "modifier_8",
+      "type": "int32"
+    },
+    {
+      "name": "modifier_9",
+      "type": "int32"
+    },
+    {
+      "name": "modifier_10",
+      "type": "int32"
+    },
+    {
+      "name": "max_level",
+      "type": "int32"
+    }
+  ]
+}

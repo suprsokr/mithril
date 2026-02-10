@@ -1,0 +1,90 @@
+{
+  "file": "Destructiblemodeldata.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "state_1_impact_effect_doodad_set",
+      "type": "uint32"
+    },
+    {
+      "name": "state_1_ambient_doodad_set",
+      "type": "uint32"
+    },
+    {
+      "name": "state_1_name_set",
+      "type": "int32"
+    },
+    {
+      "name": "state_1_unknown_1",
+      "type": "uint32"
+    },
+    {
+      "name": "state_1_unknown_2",
+      "type": "uint32"
+    },
+    {
+      "name": "state_2_impact_effect_doodad_set",
+      "type": "uint32"
+    },
+    {
+      "name": "state_2_ambient_doodad_set",
+      "type": "int32"
+    },
+    {
+      "name": "state_2_name_set",
+      "type": "uint32"
+    },
+    {
+      "name": "state_2_unknown_1",
+      "type": "uint32"
+    },
+    {
+      "name": "state_2_unknown_2",
+      "type": "uint32"
+    },
+    {
+      "name": "state_3_impact_effect_doodad_set",
+      "type": "int32"
+    },
+    {
+      "name": "state_3_ambient_doodad_set",
+      "type": "uint32"
+    },
+    {
+      "name": "state_3_name_set",
+      "type": "uint32"
+    },
+    {
+      "name": "state_3_unknown_1",
+      "type": "uint32"
+    },
+    {
+      "name": "state_3_unknown_2",
+      "type": "int32"
+    },
+    {
+      "name": "state_4_impact_effect_doodad_set",
+      "type": "uint32"
+    },
+    {
+      "name": "state_4_ambient_doodad_set",
+      "type": "uint32"
+    },
+    {
+      "name": "state_4_unknown",
+      "type": "uint32"
+    }
+  ]
+}

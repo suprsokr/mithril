@@ -1,0 +1,30 @@
+{
+  "file": "Glyphproperties.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "spell_id",
+      "type": "int32"
+    },
+    {
+      "name": "glyph_slot_type",
+      "type": "int32"
+    },
+    {
+      "name": "spell_icon_id",
+      "type": "int32"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "file": "Movie.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "filename",
+      "type": "uint32"
+    },
+    {
+      "name": "volume",
+      "type": "uint32"
+    }
+  ]
+}

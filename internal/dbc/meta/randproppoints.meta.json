@@ -1,0 +1,78 @@
+{
+  "file": "Randproppoints.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "epic_1",
+      "type": "int32"
+    },
+    {
+      "name": "epic_2",
+      "type": "int32"
+    },
+    {
+      "name": "epic_3",
+      "type": "int32"
+    },
+    {
+      "name": "epic_4",
+      "type": "int32"
+    },
+    {
+      "name": "epic_5",
+      "type": "int32"
+    },
+    {
+      "name": "superior_1",
+      "type": "int32"
+    },
+    {
+      "name": "superior_2",
+      "type": "int32"
+    },
+    {
+      "name": "superior_3",
+      "type": "int32"
+    },
+    {
+      "name": "superior_4",
+      "type": "int32"
+    },
+    {
+      "name": "superior_5",
+      "type": "int32"
+    },
+    {
+      "name": "good_1",
+      "type": "int32"
+    },
+    {
+      "name": "good_2",
+      "type": "int32"
+    },
+    {
+      "name": "good_3",
+      "type": "int32"
+    },
+    {
+      "name": "good_4",
+      "type": "int32"
+    },
+    {
+      "name": "good_5",
+      "type": "int32"
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "file": "Gameobjectdisplayinfo.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "model_name",
+      "type": "string"
+    },
+    {
+      "name": "sound_1",
+      "type": "uint32"
+    },
+    {
+      "name": "sound_2",
+      "type": "uint32"
+    },
+    {
+      "name": "sound_3",
+      "type": "uint32"
+    },
+    {
+      "name": "sound_4",
+      "type": "uint32"
+    },
+    {
+      "name": "sound_5",
+      "type": "uint32"
+    },
+    {
+      "name": "sound_6",
+      "type": "uint32"
+    },
+    {
+      "name": "sound_7",
+      "type": "uint32"
+    },
+    {
+      "name": "sound_8",
+      "type": "uint32"
+    },
+    {
+      "name": "sound_9",
+      "type": "uint32"
+    },
+    {
+      "name": "sound_10",
+      "type": "uint32"
+    },
+    {
+      "name": "geo_box_min_x",
+      "type": "float"
+    },
+    {
+      "name": "geo_box_min_y",
+      "type": "float"
+    },
+    {
+      "name": "geo_box_min_z",
+      "type": "float"
+    },
+    {
+      "name": "geo_box_max_x",
+      "type": "float"
+    },
+    {
+      "name": "geo_box_max_y",
+      "type": "float"
+    },
+    {
+      "name": "geo_box_max_z",
+      "type": "float"
+    },
+    {
+      "name": "object_effect_package_id",
+      "type": "uint32"
+    }
+  ]
+}

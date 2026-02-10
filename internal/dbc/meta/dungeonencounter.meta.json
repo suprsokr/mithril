@@ -1,0 +1,42 @@
+{
+  "file": "Dungeonencounter.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "map_id",
+      "type": "int32"
+    },
+    {
+      "name": "difficulty",
+      "type": "int32"
+    },
+    {
+      "name": "order_index",
+      "type": "uint32"
+    },
+    {
+      "name": "bit",
+      "type": "int32"
+    },
+    {
+      "name": "name",
+      "type": "Loc"
+    },
+    {
+      "name": "spell_icon_id",
+      "type": "uint32"
+    }
+  ]
+}

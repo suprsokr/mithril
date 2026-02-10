@@ -1,0 +1,42 @@
+{
+  "file": "Emotes.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "anim_name",
+      "type": "uint32"
+    },
+    {
+      "name": "anim_id",
+      "type": "uint32"
+    },
+    {
+      "name": "flags",
+      "type": "int32"
+    },
+    {
+      "name": "emote_type",
+      "type": "int32"
+    },
+    {
+      "name": "unit_stand_state",
+      "type": "int32"
+    },
+    {
+      "name": "sound_id",
+      "type": "uint32"
+    }
+  ]
+}

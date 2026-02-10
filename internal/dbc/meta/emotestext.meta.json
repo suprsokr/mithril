@@ -1,0 +1,90 @@
+{
+  "file": "Emotestext.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "name",
+      "type": "uint32"
+    },
+    {
+      "name": "emote_id",
+      "type": "int32"
+    },
+    {
+      "name": "text_data_1",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_2",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_3",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_4",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_5",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_6",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_7",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_8",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_9",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_10",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_11",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_12",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_13",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_14",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_15",
+      "type": "uint32"
+    },
+    {
+      "name": "text_data_16",
+      "type": "uint32"
+    }
+  ]
+}

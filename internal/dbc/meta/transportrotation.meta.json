@@ -1,0 +1,42 @@
+{
+  "file": "Transportrotation.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "game_object_entry",
+      "type": "int32"
+    },
+    {
+      "name": "time_index",
+      "type": "int32"
+    },
+    {
+      "name": "rot_x",
+      "type": "float"
+    },
+    {
+      "name": "rot_y",
+      "type": "float"
+    },
+    {
+      "name": "rot_z",
+      "type": "float"
+    },
+    {
+      "name": "rot_w",
+      "type": "float"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "file": "Overridespelldata.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "spell_1",
+      "type": "int32"
+    },
+    {
+      "name": "spell_2",
+      "type": "int32"
+    },
+    {
+      "name": "spell_3",
+      "type": "int32"
+    },
+    {
+      "name": "spell_4",
+      "type": "int32"
+    },
+    {
+      "name": "spell_5",
+      "type": "int32"
+    },
+    {
+      "name": "spell_6",
+      "type": "int32"
+    },
+    {
+      "name": "spell_7",
+      "type": "int32"
+    },
+    {
+      "name": "spell_8",
+      "type": "int32"
+    },
+    {
+      "name": "spell_9",
+      "type": "int32"
+    },
+    {
+      "name": "spell_10",
+      "type": "int32"
+    },
+    {
+      "name": "flags",
+      "type": "uint32"
+    }
+  ]
+}

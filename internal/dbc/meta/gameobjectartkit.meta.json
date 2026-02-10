@@ -1,0 +1,46 @@
+{
+  "file": "Gameobjectartkit.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "texture_1",
+      "type": "uint32"
+    },
+    {
+      "name": "texture_2",
+      "type": "uint32"
+    },
+    {
+      "name": "texture_3",
+      "type": "uint32"
+    },
+    {
+      "name": "attach_model_1",
+      "type": "uint32"
+    },
+    {
+      "name": "attach_model_2",
+      "type": "uint32"
+    },
+    {
+      "name": "attach_model_3",
+      "type": "uint32"
+    },
+    {
+      "name": "attach_model_4",
+      "type": "uint32"
+    }
+  ]
+}

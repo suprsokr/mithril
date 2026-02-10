@@ -27,7 +27,7 @@ type DBConfig struct {
 
 // OpenDB opens a MySQL connection from a DBConfig.
 func OpenDB(c DBConfig) (*sql.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&allowNativePasswords=true",
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&allowNativePasswords=true&multiStatements=true",
 		c.User, c.Password, c.Host, c.Port, c.Name)
 
 	db, err := sql.Open("mysql", dsn)

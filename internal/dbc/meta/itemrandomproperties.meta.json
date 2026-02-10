@@ -1,0 +1,46 @@
+{
+  "file": "Itemrandomproperties.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "name_internal",
+      "type": "uint32"
+    },
+    {
+      "name": "enchantment_1",
+      "type": "int32"
+    },
+    {
+      "name": "enchantment_2",
+      "type": "int32"
+    },
+    {
+      "name": "enchantment_3",
+      "type": "int32"
+    },
+    {
+      "name": "unused_1",
+      "type": "uint32"
+    },
+    {
+      "name": "unused_2",
+      "type": "uint32"
+    },
+    {
+      "name": "name",
+      "type": "Loc"
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "file": "Questfactionreward.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "difficulty_1",
+      "type": "int32"
+    },
+    {
+      "name": "difficulty_2",
+      "type": "int32"
+    },
+    {
+      "name": "difficulty_3",
+      "type": "int32"
+    },
+    {
+      "name": "difficulty_4",
+      "type": "int32"
+    },
+    {
+      "name": "difficulty_5",
+      "type": "int32"
+    },
+    {
+      "name": "difficulty_6",
+      "type": "int32"
+    },
+    {
+      "name": "difficulty_7",
+      "type": "int32"
+    },
+    {
+      "name": "difficulty_8",
+      "type": "int32"
+    },
+    {
+      "name": "difficulty_9",
+      "type": "int32"
+    },
+    {
+      "name": "difficulty_10",
+      "type": "int32"
+    }
+  ]
+}

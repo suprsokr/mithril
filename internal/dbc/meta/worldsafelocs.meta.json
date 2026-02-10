@@ -1,0 +1,38 @@
+{
+  "file": "Worldsafelocs.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "continent",
+      "type": "uint32"
+    },
+    {
+      "name": "loc_x",
+      "type": "float"
+    },
+    {
+      "name": "loc_y",
+      "type": "float"
+    },
+    {
+      "name": "loc_z",
+      "type": "float"
+    },
+    {
+      "name": "area_name",
+      "type": "Loc"
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "file": "Worldmapoverlay.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "world_map_area_id",
+      "type": "uint32"
+    },
+    {
+      "name": "area_id_1",
+      "type": "int32"
+    },
+    {
+      "name": "area_id_2",
+      "type": "int32"
+    },
+    {
+      "name": "area_id_3",
+      "type": "int32"
+    },
+    {
+      "name": "area_id_4",
+      "type": "int32"
+    },
+    {
+      "name": "map_point_x",
+      "type": "uint32"
+    },
+    {
+      "name": "map_point_y",
+      "type": "uint32"
+    },
+    {
+      "name": "texture_name",
+      "type": "uint32"
+    },
+    {
+      "name": "texture_width_1",
+      "type": "uint32"
+    },
+    {
+      "name": "texture_width_2",
+      "type": "uint32"
+    },
+    {
+      "name": "texture_height_1",
+      "type": "uint32"
+    },
+    {
+      "name": "texture_height_2",
+      "type": "uint32"
+    },
+    {
+      "name": "offset_x_1",
+      "type": "uint32"
+    },
+    {
+      "name": "offset_x_2",
+      "type": "uint32"
+    },
+    {
+      "name": "offset_y_1",
+      "type": "uint32"
+    },
+    {
+      "name": "offset_y_2",
+      "type": "uint32"
+    }
+  ]
+}

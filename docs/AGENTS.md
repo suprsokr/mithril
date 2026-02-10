@@ -229,17 +229,6 @@ mithril/
 └── docs/                               # Workflow documentation (you are here)
 ```
 
-## Related Projects in This Workspace
-
-| Directory | Description |
-|---|---|
-| `mithril/` | The CLI tool (this project) |
-| `mithril-data/` | Runtime data directory (created by `mithril init`, holds client, modules, server data) |
-| `mithril-registry/` | Community mod registry — JSON files in `mods/`, validated by `schema.json` |
-| `go-mpq/` | Go library for reading/writing MPQ archives (used by mithril's build system) |
-| `thorium/` | Predecessor tool with a different architecture (SQL-based DBC editing via MySQL). Not used by mithril but shares the same problem domain. |
-| `fly-in-azeroth-thorium/` | Example thorium mod (flying in Azeroth via DBC SQL migration) |
-
 ## Common Agent Tasks
 
 ### Creating a mod end-to-end

@@ -1,0 +1,26 @@
+{
+  "file": "Glyphslot.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "glyph_type",
+      "type": "int32"
+    },
+    {
+      "name": "tooltip",
+      "type": "int32"
+    }
+  ]
+}

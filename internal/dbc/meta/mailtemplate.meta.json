@@ -1,0 +1,26 @@
+{
+  "file": "Mailtemplate.dbc",
+  "primaryKeys": [
+    "field_0"
+  ],
+  "sortOrder": [
+    {
+      "name": "field_0",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "subject",
+      "type": "Loc"
+    },
+    {
+      "name": "body",
+      "type": "Loc"
+    }
+  ]
+}

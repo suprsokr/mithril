@@ -1,0 +1,30 @@
+{
+  "file": "Itemlimitcategory.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "name",
+      "type": "Loc"
+    },
+    {
+      "name": "quantity",
+      "type": "uint32"
+    },
+    {
+      "name": "flags",
+      "type": "uint32"
+    }
+  ]
+}

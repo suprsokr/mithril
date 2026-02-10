@@ -1,0 +1,146 @@
+{
+  "file": "Lock.dbc",
+  "primaryKeys": [
+    "id"
+  ],
+  "sortOrder": [
+    {
+      "name": "id",
+      "direction": "ASC"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "uint32"
+    },
+    {
+      "name": "type_1",
+      "type": "int32"
+    },
+    {
+      "name": "type_2",
+      "type": "int32"
+    },
+    {
+      "name": "type_3",
+      "type": "int32"
+    },
+    {
+      "name": "type_4",
+      "type": "int32"
+    },
+    {
+      "name": "type_5",
+      "type": "int32"
+    },
+    {
+      "name": "type_6",
+      "type": "int32"
+    },
+    {
+      "name": "type_7",
+      "type": "int32"
+    },
+    {
+      "name": "type_8",
+      "type": "int32"
+    },
+    {
+      "name": "index_1",
+      "type": "int32"
+    },
+    {
+      "name": "index_2",
+      "type": "int32"
+    },
+    {
+      "name": "index_3",
+      "type": "int32"
+    },
+    {
+      "name": "index_4",
+      "type": "int32"
+    },
+    {
+      "name": "index_5",
+      "type": "int32"
+    },
+    {
+      "name": "index_6",
+      "type": "int32"
+    },
+    {
+      "name": "index_7",
+      "type": "int32"
+    },
+    {
+      "name": "index_8",
+      "type": "int32"
+    },
+    {
+      "name": "skill_1",
+      "type": "int32"
+    },
+    {
+      "name": "skill_2",
+      "type": "int32"
+    },
+    {
+      "name": "skill_3",
+      "type": "int32"
+    },
+    {
+      "name": "skill_4",
+      "type": "int32"
+    },
+    {
+      "name": "skill_5",
+      "type": "int32"
+    },
+    {
+      "name": "skill_6",
+      "type": "int32"
+    },
+    {
+      "name": "skill_7",
+      "type": "int32"
+    },
+    {
+      "name": "skill_8",
+      "type": "int32"
+    },
+    {
+      "name": "action_1",
+      "type": "uint32"
+    },
+    {
+      "name": "action_2",
+      "type": "uint32"
+    },
+    {
+      "name": "action_3",
+      "type": "uint32"
+    },
+    {
+      "name": "action_4",
+      "type": "uint32"
+    },
+    {
+      "name": "action_5",
+      "type": "uint32"
+    },
+    {
+      "name": "action_6",
+      "type": "uint32"
+    },
+    {
+      "name": "action_7",
+      "type": "uint32"
+    },
+    {
+      "name": "action_8",
+      "type": "uint32"
+    }
+  ]
+}
